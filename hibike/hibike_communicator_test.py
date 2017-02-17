@@ -10,6 +10,7 @@ comms = hc.HibikeCommunicator()
 time.sleep(1)
 
 device_info = comms.get_uids_and_types()
+print(device_info)
 uid = device_info[0][0]
 type = device_info[0][1]
 

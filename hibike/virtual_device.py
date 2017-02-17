@@ -80,9 +80,10 @@ while (True):
     if msg.getmessageID() in [hm.messageTypes["DeviceRead"]]:
 # Send a device data with the requested param and value tuples
         print("Device read recieved")
-        params = struct.unpack("<H", msg.getPayload())
+        params = struct.unpack("<H", msg.getPayload())[0]
+        print(params)
         read_params = hm.decode_params(device_id, params)
-        read_data = 0
+        read_data = []
           
         for data_tuple in params_and_values:
             if data_tuple[0] in read_params:

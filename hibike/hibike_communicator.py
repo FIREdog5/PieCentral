@@ -6,6 +6,7 @@ import hibike_message as hm
 import hibike_process as hp
 import multiprocessing
 import threading
+from queue import Empty
 
 class HibikeCommunicator:
   
@@ -29,7 +30,8 @@ class HibikeCommunicator:
       self.uids = set()
       
       # This block creates the thread
-      threading.Thread(target = self.process_output)
+      outThread =  threading.Thread(target = self.process_output)
+      outThread.start()
 
    def process_output(self):
       """
@@ -40,18 +42,21 @@ class HibikeCommunicator:
       while True:
          try:
             output = self.stateQueue.get_nowait()
-         except QueueEmpty:
+         except Empty:
             continue
          print(output)
       
          #Now, get or remove the uid if it is appropriate to do so
-         command, agrs = output
+        
+         print(output)
+         command = output[0]
+         print(command)
          if command == "device_subscribed":
-            uid = args[0]
+            uid = output[1][0]
             if uid not in self.uids:
                self.uids.add(uid)
          if command == "device_disconnected":
-            uid = args
+            uid = output[1]
             if uid in self.uids:
                self.uids.remove(uid)
 
@@ -61,8 +66,9 @@ class HibikeCommunicator:
          Tuple structure: (uid, device type name)
       """
       list = []
+      print(self.uids)
       for uid in self.uids:
-         list.add(uid, hm.uid_to_device_name(uid))
+         list.append((uid, hm.uid_to_device_name(uid)))
       return list
 
    def write(self, uid, params_and_values):
@@ -91,4 +97,4 @@ class HibikeCommunicator:
            delay - the delay between device datas to be sent
            params - an iterable of the names of the params to be subscribed to
         """
-        self.pipeToChild.send(["read_params", [uid, delay, params]])
+        self.pipeToChild.send(["subscribe_device", [uid, delay, params]])
