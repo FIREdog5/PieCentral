@@ -133,7 +133,7 @@ def device_comms(uid_type_tuple):
          comms.read(uid, ["switch0", "switch1", "switch2"])
          comms.read(uid, ["switch0", "switch1"])
          time.sleep(0.5)
-         print("Uid: \n", "Last cached: ", comms.get_last_cached(uid, "switch0"), "\n", comms.get_last_cached(uid, "switch1"), "\n")
+         print("Uid: ", uid,"\n", "Last cached: ", comms.get_last_cached(uid, "switch0"), "\n", comms.get_last_cached(uid, "switch1"), "\n")
 
    elif type == "LineFollower":
       comms.subscribe(uid, 100, ["left", "center", "right"])
@@ -144,7 +144,7 @@ def device_comms(uid_type_tuple):
          time.sleep(0.05)
          comms.read(uid, ["left"])
          time.sleep(0.5)
-         print("Uid: \n", "Last cached: ", comms.get_last_cached(uid, "left"), "\n", comms.get_last_cached(uid, "right"), "\n")
+         print("Uid: ", uid,"\n", "Last cached: ", comms.get_last_cached(uid, "left"), "\n", comms.get_last_cached(uid, "right"), "\n")
 
    elif type == "Potentiometer":
       comms.subscribe(uid, 100, ["pot0" , "pot1", "pot2", "pot3"])
@@ -155,7 +155,7 @@ def device_comms(uid_type_tuple):
          time.sleep(0.05)
          comms.read(uid, ["pot0" , "pot1"])
          time.sleep(0.5)
-         print("Uid: \n", "Last cached: ", comms.get_last_cached(uid, "pot0"), "\n", comms.get_last_cached(uid, "pot2"), "\n")
+         print("Uid: ", uid,"\n", "Last cached: ", comms.get_last_cached(uid, "pot0"), "\n", comms.get_last_cached(uid, "pot2"), "\n")
 
    elif type == "Encoder":
       comms.subscribe(uid, 100, ["rotation"])
@@ -166,7 +166,7 @@ def device_comms(uid_type_tuple):
          time.sleep(0.05)
          comms.read(uid, ["rotation"])
          time.sleep(0.5)
-         print("Uid: \n", "Last cached: ", comms.get_last_cached(uid, "rotation"), "\n")
+         print("Uid: ", uid,"\n", "Last cached: ", comms.get_last_cached(uid, "rotation"), "\n")
 
    elif type == "BatteryBuzzer":
       comms.subscribe(uid, 100, ["cell1", "cell2", "cell3", "calibrate"])
@@ -177,7 +177,7 @@ def device_comms(uid_type_tuple):
          time.sleep(0.05)
          comms.write(uid, ("calibrate", False))
          time.sleep(0.5)
-         print("Uid: \n", "Last cached: ", comms.get_last_cached(uid, "calibrate"), "\n", comms.get_last_cached(uid, "cell2"), "\n")
+         print("Uid: ", uid,"\n", "Last cached: ", comms.get_last_cached(uid, "calibrate"), "\n", comms.get_last_cached(uid, "cell2"), "\n")
 
    elif type == "TeamFlag":
       comms.subscribe(uid, 100, ["led1", "led2", "led3", "led4", "blue", "yellow"])
@@ -188,7 +188,7 @@ def device_comms(uid_type_tuple):
          time.sleep(0.05)
          comms.write(uid, [("led1", False), ("led2", False), ("led3", True), ("led4", True), ("blue", False), ("yellow", True)])
          time.sleep(0.5)
-         print("Uid: \n", "Last cached: ", comms.get_last_cached(uid, "blue"), "\n", comms.get_last_cached(uid, "yellow"), "\n")
+         print("Uid: ", uid,"\n", "Last cached: ", comms.get_last_cached(uid, "blue"), "\n", comms.get_last_cached(uid, "yellow"), "\n")
 
    elif type == "YogiBear":
       comms.subscribe(uid, 100, ["duty", "forward"])
@@ -199,7 +199,7 @@ def device_comms(uid_type_tuple):
          time.sleep(0.05)
          comms.write(uid, [("duty", 50),  ("forward", True)])
          time.sleep(0.5)
-         print("Uid: \n", "Last cached: ", comms.get_last_cached(uid, "duty"), "\n", comms.get_last_cached(uid, "forward"), "\n")
+         print("Uid: ", uid,"\n", "Last cached: ", comms.get_last_cached(uid, "duty"), "\n", comms.get_last_cached(uid, "forward"), "\n")
 
    elif type == "ServoControl":
       comms.subscribe(uid, 100, ["servo0", "enable0", "servo1", "enable1", "servo2", "enable2", "servo3", "enable3"])
@@ -210,7 +210,7 @@ def device_comms(uid_type_tuple):
          time.sleep(0.05)
          comms.write(uid, [("servo0", 1), ("enable0", True), ("servo1", 26), ("enable1", True), ("servo2", 30), ("enable2", False), ("servo3", 17), ("enable3", True)])
          time.sleep(0.5)
-         print("Uid: \n", "Last cached: ", comms.get_last_cached(uid, "servo1"), "\n", comms.get_last_cached(uid, "enable1"), "\n")
+         print("Uid: ", uid,"\n", "Last cached: ", comms.get_last_cached(uid, "servo1"), "\n", comms.get_last_cached(uid, "enable1"), "\n")
 
    elif type == "ExampleDevice":
       comms.subscribe(uid, 100, ["kumiko", "hazuki", "sapphire", "reina", "asuka", "haruka", "kaori", "natsuki", "yuko", "mizore", "nozomi", "shuichi", "takuya", "riko", "aoi", "noboru"])
@@ -221,7 +221,7 @@ def device_comms(uid_type_tuple):
          time.sleep(0.05)
          comms.write(uid, [("kumiko", False), ("hazuki", 0), ("sapphire", 0), ("reina", 0), ("asuka", 0), ("haruka", 0), ("kaori", 0), ("natsuki", 0), ("yuko", 0), ("mizore", 0.0), ("nozomi", 0.0), ("takuya", 0), ("aoi", 0)])
          time.sleep(0.5)
-         print("Uid: \n", "Last cached: ", comms.get_last_cached(uid, "kumiko"), "\n", comms.get_last_cached(uid, "hazuki"), "\n")
+         print("Uid: ", uid,"\n","Last cached: ", comms.get_last_cached(uid, "kumiko"), "\n", comms.get_last_cached(uid, "hazuki"), "\n")
 
 
 if __name__ == "__main__":
