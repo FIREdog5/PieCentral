@@ -13,7 +13,7 @@ class HibikeCommunicator:
    def __init__(self):
       """
           Set up the pipes for communication between the device and the Beegle Bum Black, creates a thread to recieve communications from the device, starts up the process that runs the communication, and sets up a dictionary that caches all device values sent to it.
-      """
+      """
       
       # This block creates the pipes
       self.pipeToChild, pipeFromChild = multiprocessing.Pipe()
@@ -44,12 +44,10 @@ class HibikeCommunicator:
       """
       while True:
          output = self.stateQueue.get()
-         
-         #Now, get or remove the uid if it is appropriate to do so
-        
          print(output)
+
+         #Now, get or remove the uid if it is appropriate to do so
          command = output[0]
-         print(command)
          if command == "device_subscribed":
             uid = output[1][0]
             if uid not in self.uids:
@@ -58,15 +56,24 @@ class HibikeCommunicator:
             uid = output[1]
             if uid in self.uids:
                self.uids.remove(uid)
-   #Planned and incomplete caching code
-   """
+
+   
          #If it is a device value, cache it in the dictionary.
          if command == "device_values":
-             param_and_value_timestamps = {}
-                 for data_tuple in output[1]:
-                     param_and_value_timestamps.update({data_tuple[0] : })
-             self.device_values_cache.update({uid : {})
-   """
+             uid = output[1][0]
+             params_values = output[1][1]
+             for param_val_tuple in params_values:
+                if uid not in self.device_values_cache:
+                   self.device_values_cache.update({uid: {param_val_tuple[0]: (param_val_tuple[1], time.time())}})  
+                else:
+                   self.device_values_cache[uid].update({param_val_tuple[0]: (param_val_tuple[1], time.time())})
+   
+   def get_last_cached(self, uid, param):
+      """
+         Returns a tuple of the value and the timestamp of the last device_values package recieved from a uid and a parameter
+      """
+      return self.device_values_cache[uid][param]
+
    
    def get_uids_and_types(self):
       """
@@ -74,7 +81,6 @@ class HibikeCommunicator:
          Tuple structure: (uid, device type name)
       """
       list = []
-      print(self.uids)
       for uid in self.uids:
          list.append((uid, hm.uid_to_device_name(uid)))
       return list
@@ -121,92 +127,102 @@ def device_comms(uid_type_tuple):
    
    
    if type == "LimitSwitch":
-      comms.subscribe(uid, 10, ["switch0", "switch1", "switch2", "switch3"])
+      comms.subscribe(uid, 100, ["switch0", "switch1", "switch2", "switch3"])
       while True:
          comms.read(uid, ["switch0", "switch1", "switch2", "switch3"])
          comms.read(uid, ["switch0", "switch1", "switch2"])
          comms.read(uid, ["switch0", "switch1"])
-         time.sleep(5)
+         time.sleep(0.5)
+         print("Uid: \n", "Last cached: ", comms.get_last_cached(uid, "switch0"), "\n", comms.get_last_cached(uid, "switch1"), "\n")
 
    elif type == "LineFollower":
-      comms.subscribe(uid, 10, ["left", "center", "right"])
+      comms.subscribe(uid, 100, ["left", "center", "right"])
       while True:
          comms.read(uid, ["left", "center", "right"])
-         time.sleep(0.3)
+         time.sleep(0.05)
          comms.read(uid, ["left", "center"])
-         time.sleep(0.3)
+         time.sleep(0.05)
          comms.read(uid, ["left"])
-         time.sleep(5)
+         time.sleep(0.5)
+         print("Uid: \n", "Last cached: ", comms.get_last_cached(uid, "left"), "\n", comms.get_last_cached(uid, "right"), "\n")
 
    elif type == "Potentiometer":
-      comms.subscribe(uid, 10, ["pot0" , "pot1", "pot2", "pot3"])
+      comms.subscribe(uid, 100, ["pot0" , "pot1", "pot2", "pot3"])
       while True:
          comms.read(uid, ["pot0" , "pot1", "pot2", "pot3"])
-         time.sleep(0.3)
+         time.sleep(0.05)
          comms.read(uid, ["pot0" , "pot1", "pot2"])
-         time.sleep(0.3)
+         time.sleep(0.05)
          comms.read(uid, ["pot0" , "pot1"])
-         time.sleep(5)
+         time.sleep(0.5)
+         print("Uid: \n", "Last cached: ", comms.get_last_cached(uid, "pot0"), "\n", comms.get_last_cached(uid, "pot2"), "\n")
 
    elif type == "Encoder":
-      comms.subscribe(uid, 10, ["rotation"])
+      comms.subscribe(uid, 100, ["rotation"])
       while True:
          comms.read(uid, ["rotation"])
-         time.sleep(0.3)
+         time.sleep(0.05)
          comms.read(uid, ["rotation"])
-         time.sleep(0.3)
+         time.sleep(0.05)
          comms.read(uid, ["rotation"])
-         time.sleep(5)
+         time.sleep(0.5)
+         print("Uid: \n", "Last cached: ", comms.get_last_cached(uid, "rotation"), "\n")
 
    elif type == "BatteryBuzzer":
-      comms.subscribe(uid, 10, ["cell1", "cell2", "cell3", "callibrate"])
+      comms.subscribe(uid, 100, ["cell1", "cell2", "cell3", "calibrate"])
       while True:
          comms.read(uid, ["cell2"])
-         time.sleep(0.3)
-         comms.write(uid, ("callibrate", True))
-         time.sleep(0.3)
-         comms.write(uid, ("callibrate", False))
-         time.sleep(5)
+         time.sleep(0.05)
+         comms.write(uid, ("calibrate", True))
+         time.sleep(0.05)
+         comms.write(uid, ("calibrate", False))
+         time.sleep(0.5)
+         print("Uid: \n", "Last cached: ", comms.get_last_cached(uid, "calibrate"), "\n", comms.get_last_cached(uid, "cell2"), "\n")
 
    elif type == "TeamFlag":
-      comms.subscribe(uid, 10, ["led1", "led2", "led3", "led4", "blue", "yellow"])
+      comms.subscribe(uid, 100, ["led1", "led2", "led3", "led4", "blue", "yellow"])
       while True:
-         comms.write(uid, [("led1", 2), ("led2", 2), ("led3", 1), ("led4", 2), ("blue", 2), ("yellow", 2)])
-         time.sleep(0.3)
+         comms.write(uid, [("led1", True), ("led2", True), ("led3", False), ("led4", False), ("blue", True), ("yellow", False)])
+         time.sleep(0.05)
          comms.read(uid, ["led3", "yellow"])
-         time.sleep(0.3)
-         comms.write(uid, [("led1", 1), ("led2", 0), ("led3", 0), ("led4", 0), ("blue", 0), ("yellow", 0)])
-         time.sleep(5)
+         time.sleep(0.05)
+         comms.write(uid, [("led1", False), ("led2", False), ("led3", True), ("led4", True), ("blue", False), ("yellow", True)])
+         time.sleep(0.5)
+         print("Uid: \n", "Last cached: ", comms.get_last_cached(uid, "blue"), "\n", comms.get_last_cached(uid, "yellow"), "\n")
 
    elif type == "YogiBear":
-      comms.subscribe(uid, 10, ["duty", "forward"])
+      comms.subscribe(uid, 100, ["duty", "forward"])
       while True:
          comms.write(uid, [("duty", 100),  ("forward", False)])
-         time.sleep(0.3)
+         time.sleep(0.05)
          comms.read(uid, ["forward"])
-         time.sleep(0.3)
+         time.sleep(0.05)
          comms.write(uid, [("duty", 50),  ("forward", True)])
-         time.sleep(5)
+         time.sleep(0.5)
+         print("Uid: \n", "Last cached: ", comms.get_last_cached(uid, "duty"), "\n", comms.get_last_cached(uid, "forward"), "\n")
 
    elif type == "ServoControl":
-      comms.subscribe(uid, 10, ["servo0", "enable0", "servo1", "enable1", "servo2", "enable2", "servo3", "enable3"])
+      comms.subscribe(uid, 100, ["servo0", "enable0", "servo1", "enable1", "servo2", "enable2", "servo3", "enable3"])
       while True:
          comms.write(uid, [("servo0", 3), ("enable0", False), ("servo1", 3), ("enable1", False), ("servo2", 3), ("enable2", True), ("servo3", 3), ("enable3", False)])
-         time.sleep(0.3)
+         time.sleep(0.05)
          comms.read(uid, ["servo0", "enable0"])
-         time.sleep(0.3)
+         time.sleep(0.05)
          comms.write(uid, [("servo0", 1), ("enable0", True), ("servo1", 26), ("enable1", True), ("servo2", 30), ("enable2", False), ("servo3", 17), ("enable3", True)])
-         time.sleep(5)
+         time.sleep(0.5)
+         print("Uid: \n", "Last cached: ", comms.get_last_cached(uid, "servo1"), "\n", comms.get_last_cached(uid, "enable1"), "\n")
 
    elif type == "ExampleDevice":
-      comms.subscribe(uid, 10, ["kumiko", "hazuki", "sapphire", "reina", "asuka", "haruka", "kaori", "natsuki", "yuko", "mizore", "nozomi", "shuichi", "takuya", "riko", "aoi", "noboru"])
+      comms.subscribe(uid, 100, ["kumiko", "hazuki", "sapphire", "reina", "asuka", "haruka", "kaori", "natsuki", "yuko", "mizore", "nozomi", "shuichi", "takuya", "riko", "aoi", "noboru"])
       while True:
          comms.write(uid, [("kumiko", True), ("hazuki", 19), ("sapphire", 12), ("reina", 210), ("asuka", 105), ("haruka", 1005), ("kaori", 551), ("natsuki", 18002), ("yuko", 9001), ("mizore", 6.45), ("nozomi", 33.2875), ("takuya", 331), ("aoi", 7598)])
-         time.sleep(0.3)
+         time.sleep(0.05)
          comms.read(uid, ["kumiko", "hazuki", "mizore", "riko", "noboru"])
-         time.sleep(0.3)
+         time.sleep(0.05)
          comms.write(uid, [("kumiko", False), ("hazuki", 0), ("sapphire", 0), ("reina", 0), ("asuka", 0), ("haruka", 0), ("kaori", 0), ("natsuki", 0), ("yuko", 0), ("mizore", 0.0), ("nozomi", 0.0), ("takuya", 0), ("aoi", 0)])
-         time.sleep(5)
+         time.sleep(0.5)
+         print("Uid: \n", "Last cached: ", comms.get_last_cached(uid, "kumiko"), "\n", comms.get_last_cached(uid, "hazuki"), "\n")
+
 
 if __name__ == "__main__":
     
@@ -218,6 +234,7 @@ if __name__ == "__main__":
         
    # For each device, start a thread that calls the device_comms function
    for uid_type_tuple in device_info:
-      process_thread = threading.Thread(target = device_comms, args = uid_type_tuple)
+      print(uid_type_tuple)
+      process_thread = threading.Thread(target = device_comms, args = [uid_type_tuple])
       process_thread.start()
 
