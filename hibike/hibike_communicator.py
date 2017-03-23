@@ -38,13 +38,13 @@ class HibikeCommunicator:
 
    def process_output(self):
       """
-         Prints out messages from the devices that are uploaded by newProcess to stateQueue
+         Processes the output uploaded to the state queue by te devices
          If it's a subscription response from a device whose uid is not in self.uids, the uid will be added to self.uids
          If it's a device disconnection from a device whose uid in self.uids, the uid will be removed from self.uids
+         If it's a device value, cache it in the dictionary
       """
       while True:
          output = self.stateQueue.get()
-         print(output)
 
          #Now, get or remove the uid if it is appropriate to do so
          command = output[0]
