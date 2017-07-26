@@ -1,7 +1,7 @@
 \documentclass[12pt]{book}
 \usepackage{tgschola}
 \usepackage[margin=1in]{geometry}
-\usepackage{minted}
+\usepackage{tikz}
 
 \title{The Hibike and Runtime Guide}
 \date{\today}
@@ -187,8 +187,140 @@ Each smart device is assigned an 88-bit UID with the following fields.
   	\end{itemize}
 \end{itemize}
 
+\subsection{Enumerations}
+\begin{center}
+    \begin{tabular}{|c|c|}
+        \hline
+        ID & Message Type \\
+        \hline
+        0x10 & Ping \\
+        0x11 & Subscription Request \\
+        0x12 & Subscription Response \\
+        0x13 & Device Read \\
+        0x14 & Device Write \\
+        0x15 & Device Data \\
+        0x16 & Device Disable \\
+        0x17 & Heartbeat Request \\
+        0x18 & Heartbeat Response \\
+        0xFF & Error
+        \hline
+    \end{tabular}
+\end{center}
+
+\subsection{Message Descriptions}
+\begin{enumerate}
+    \item Ping: BBB pings SD for enumeration purposes.
+        The SD will respond with a SubscriptionResponse packet.
+        
+        Payload format:
+        \begin{center}
+            \begin{tabular}{|c|c|}
+                \hline
+                Empty \\
+                (0 bits) \\
+                \hline
+            \end{tabular}
+        \end{center}
+        Direction: BBB $\Rightarrow$ SD
+
+    \item SubscriptionRequest: BBB requests data to be returned at a given interval.
+        \begin{itemize}
+            \item Params is a bitmap of paramaters being subscribed to.
+            \item The SD will respond with a Sub Response packet with a delay and
+                bitmap of params it will acutally send values for, which may not be
+                what was requested, due to nonexistent and write-only parameters.
+            \item If too many parameters are subscribed to, the Smart Device may have
+                to send multiple DeviceData packets at each interval.
+            \item A delay of 0 indicates that the BBB does not want to receive data.
+            \item Non-zero delay with 0 Params will still subscribe to empty
+                updates!!!
+        \end{itemize}
+        Payload format:
+        \begin{center}
+            \begin{tabular}{|c|c|}
+                \hline
+                Params & Delay \\
+                (16 bits) & (16 bits) \\
+                \hline
+            \end{tabular}
+        \end{center}
+        Direction: BBB $\Rightarrow$ SD
+    \item SubscriptionResponse: SD sends (essentially) an ACK packet with its UID,
+        params subscribed to, and delay.
+
+        Payload format:
+        \begin{center}
+            \begin{tabular}{|c|c|c|}
+                \hline
+                Params & Delay & UID \\
+                (16 bits) & (16 bits) & (88 bits) \\
+                \hline
+            \end{tabular}
+        \end{center}
+        Direction: BBB $\Leftarrow$ SD
+    \item Device Read: BBB requests some values from the SD.
+        \begin{itemize}
+            \item The SD should respond with DeviceData packets with values for all
+                the readable params that were requested.
+            \item If all the values cannot fit in one packet, multiple will be sent.
+        \end{itemize}
+
+        Payload format:
+        \begin{center}
+            \begin{tabular}{|c|}
+                \hline
+                Params \\
+                (16 bits) \\
+                \hline
+            \end{tabular}
+        \end{center}
+        Direction: BBB $\Rightarrow$ SD
+
+
+\end{enumerate}
 
 \section{The Hibike Process}
+\texttt{hibike\_process.py} handles communication with sensors and StateManager.
+Initialization and running happen in this series of steps:
+\begin{enumerate}
+    \item Hibike asks the operating system for a list of serial ports that match
+        those used by Arduinos.
+    \item It verifies that these ports are working, and opens them for communication.
+    \item Hibike checks that each port contains a smart sensor by pinging it.
+    \item Each device is given a reading thread, a writing thread, and a write queue.
+    \item Alongside the device threads, a read batching thread and a cleanup
+        thread are started. The batch thread sends all reads to StateManager
+        at certain intervals. The cleanup thread removes disconnected devices.
+    \item Hibike tells all devices to stop sending data. Once the devices
+        respond, StateManager subscribes to each device for each of
+        its parameters.
+    \item Afterwards, Hibike receives and reacts to commands from StateManager.
+\end{enumerate}
+
+\subsection{An Explanation of the Architecture}
+Each part of the structure of the Hibike process has its place, and has
+been designed in deliberately. Here are explanations for certain parts.
+
+\paragraph{Reader and Writer Threads}
+Reading from a serial connection using nonblocking communication means that it
+is easily possible to receive an incomplete packet even if the communications
+link is reliable; thus, we use blocking reads. We don't want to stop reading
+from every other sensor if one is taking a while, so we use threads to
+periodically switch between sensors.
+
+\paragraph{The Write Queue}
+If a device sends a heartbeat request, we want to respond quickly
+without going all the way to StateManager. Thus, we have a write queue, allowing
+both the main thread and the read thread to write packets.
+
+\paragraph{The Batch Thread}
+Inter-thread communication is quick, but inter-process communication is slow.
+Consequentially,
+Hibike threads can quickly talk to each other, but talking to StateManager, which
+runs in a separate process, is quite time-consuming. Instead of
+sending any device data as soon as it is read, it is easier to bundle many
+reads up and send them all at once. The batch thread is responsible for this.
+
 \section{Testing}
 \chapter{StateManager}
 \chapter{Runtime}
