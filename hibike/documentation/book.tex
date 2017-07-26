@@ -5,7 +5,7 @@
 
 \title{The Hibike and Runtime Guide}
 \date{\today}
-\author{Brose Johnstone}
+\author{The Hibike Team}
 \begin{document}
 \maketitle
 
@@ -54,13 +54,136 @@ Communicates with sensors, sends data to runtime, and reacts to orders from Stat
 
 Alongside these main modules, there are various testing modules:
 \begin{itemize}
-\item \begin{verbatim}virtual_device.py\end{verbatim}
-Virtual devices, for testing Hibike's read and write capabilities.
-\item \begin{verbatim}hibike_tester.py\end{verbatim}
-A test module that wraps a Hibike process with a nicer interface.
+	\item \begin{verbatim}virtual_device.py\end{verbatim}
+	Virtual devices, for testing Hibike's read and write capabilities.
+	\item \begin{verbatim}hibike_tester.py\end{verbatim}
+	A test module that wraps a Hibike process with a nicer interface.
 \end{itemize}
 
 \section{The Hibike Protocol}
+\subsection{A Quick Introduction}
+We make a few starting assumptions concerning the endpoints of communication: the device controlling a sensor is a Smart Device (SD), and a Beaglebone Black (BBB) is used as the central control board of each robot and thus is in charge of communicating with each Smart Device. These two communicate with each other via serial: the Beaglebone running pySerial and the Smart Device by using the built-in serial library. As each Smart Device communicates with the Beaglebone on its own separate port, we conveniently have no need to worry about any race conditions or other problems arising from concurrency.
+
+Hibike abstracts every Smart Device as a set of (parameter, value) pairs.
+The hibike protocol supports three ways of interacting with these parameters:
+\begin{itemize}
+\item Subscribing to regular updates of specific paramters
+\item Polling specific parameters
+\item Writing to specific parameters
+\end{itemize}
+
+Refer to Section 7 for an outline of the general behavior of the Hibike protocol.
+
+\subsection{Message Format}
+
+All messages have the relatively simple structure of Message ID, Payload, and Checksum as
+depicted below. A more complete description of each field is given below the diagram.
+
+\begin{center}
+	\begin{tabular}{|c|c|c|c|}
+	\hline
+	Message ID & Payload Length & Payload & Checksum \\
+	(8 Bits) & (8 Bits) & (Length Varies) & (8 Bits) \\
+	\hline
+	\end{tabular}
+\end{center}
+
+\begin{itemize}
+	\item Message ID
+	\begin{itemize}
+		\item An 8-bit ID specifying the type of message.
+		\item More information about this field in the following sections.
+	\end{itemize}
+	\item Payload Length
+	\begin{itemize}
+		\item An 8-bit unsigned integer, specifying the number of bytes in the payload.
+	\end{itemize}
+	\item Payload
+	\begin{itemize}
+		\item Varies depending on the type of message sent.
+	\end{itemize}
+	\item Checksum
+	\begin{itemize}
+		\item An 8-bit checksum placed at the end of every message.]
+		\item The current scheme XORs every other byte in the message.
+	\end{itemize}
+\end{itemize}
+
+\subsection{UID Format}
+Each smart device is assigned an 88-bit UID with the following fields.
+
+\begin{center}
+	\begin{tabular}{|c|c|c|}
+	\hline
+	Device Type & Year & ID \\
+	(16 Bits) & (8 Bits) & (64 bits) \\
+	\hline
+	\end{tabular}
+\end{center}
+
+\begin{itemize}
+	\item Device Type
+	\begin{itemize}
+		\item 16-bit ID specifying the Type of a Smart Device
+		\item Device types are enumerated in Section 5
+	\end{itemize}
+	\item Year
+	\begin{itemize}
+		\item 8-bit ID corresponding to the competition year that the Smart Device was manufactured for.
+		\item The 2015-2016 season will correspond to 0x00
+	\end{itemize}
+	\item ID
+  	\begin{itemize}
+  		\item Randomly generated 64-bit number that will uniquely identify each Smart Device within a specific device type and year.
+  		\item With 64-bit IDs, the probability of a hash collision with 1000 of 1 type of device per year is roughly 0.05\%
+	\end{itemize}
+\end{itemize}
+
+\subsection{Parameters and Bitmaps}
+
+\begin{itemize}
+	\item Hibike abstracts every smart device as a set of parameters that map to values
+	\item Each smart device contains some number of paramaters, which can be read/written to.
+	\item Parameters can have many types. The following types are supported:
+	\begin{itemize}
+		\item \texttt{bool}
+		\item \texttt{uint8\_t}
+		\item \texttt{int8\_t}
+		\item \texttt{uint16\_t}
+		\item \texttt{int16\_t}
+		\item \texttt{uint32\_t}
+		\item \texttt{int32\_t}
+		\item \texttt{uint64\_t}
+		\item \texttt{int64\_t}
+		\item \texttt{float}
+		\item \texttt{double}
+	\end{itemize} CAUTION: Arduino's doubles are only 4 bytes long (same as a float), so an
+	Arduino's Double is the same as python's Float. Do not use this type
+	unless your arduino is actually cranking out 8 bytes.
+	\item Some paramaters are read only, some are write only, and some support both.
+	\item A config file will describe the paramaters for each Device Type (name, type, permissions).
+	\item Some packets encode sets of parameters in the form of bitmaps.
+	\begin{center}
+		\begin{tabular}{|c|c |c| c|}
+		\hline
+		Params & Value 0 & \ldots & Value 15 \\
+		(16 bits) & (Optional and Variable) & \ldots & (Optional and Variable) \\
+		\hline
+		\end{tabular}
+	\end{center}
+	\begin{itemize}
+		\item Params - 16-bit bitmap describing a set of parameters. The nth bit of
+		Params, where the LSB is the 0th bit, references the nth paramater of
+  		a device.
+		\item Value{[}0-15{]} - DeviceWrite and DeviceData send actual values for
+  		each param in Params. The value field for param n will only be present
+  		if bit n in Params is set. The size and type of each value field
+  		depends on param number and device type, and is described in a config
+  		file.
+  	\end{itemize}
+\end{itemize}
+
+
 \section{The Hibike Process}
 \section{Testing}
 \chapter{StateManager}
