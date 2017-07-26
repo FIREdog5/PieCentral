@@ -21,13 +21,13 @@ idea to have a plumber on hand when pipes start to leak.
 \section{A Brief Overview of the Control Stack}
 For our purposes, there are four elements involved in controlling the robot.
 \begin{enumerate}
-\item Dawn: the main interface that students use. Takes inputs from the controller,
-and shows data and errors to students.
-\item Runtime: the program in charge of monitoring and communication. Sends and receives data from
-Dawn, as well as monitoring Hibike and StateManager.
-\item StateManager: a data store. Provides a central place to store and retrive data from Hibike
-and Runtime.
-\item Hibike: the program that communicates with sensors. Handles low-level protocol details.
+	\item Dawn: the main interface that students use. Takes inputs from the controller,
+	and shows data and errors to students.
+	\item Runtime: the program in charge of monitoring and communication. Sends and receives data from
+	Dawn, as well as monitoring Hibike and StateManager.
+	\item StateManager: a data store. Provides a central place to store and retrive data from Hibike
+	and Runtime.
+	\item Hibike: the program that communicates with sensors. Handles low-level protocol details.
 \end{enumerate}
 \section{An Analogy}
 A simple way to explain the role of each component in the stack, from Dawn to Hibike, is
@@ -44,19 +44,23 @@ updates on what they are doing, and fires them if they don't.
 Hibike is in charge of low-level sensor communication, and all the gory
 details that are involved. It is divided into two modules:
 \begin{itemize}
-\item \begin{verbatim}hibike_message.py\end{verbatim}
-The low-level details of the
-Hibike communications protocol. Handles things like encoding into packets and checksums.
-\item \begin{verbatim}hibike_process.py\end{verbatim}
-The ``supervisor'' of sensors.
-Communicates with sensors, sends data to runtime, and reacts to orders from StateManager.
+	\item \texttt{hibike\_message.py}
+
+	The low-level details of the
+	Hibike communications protocol. Handles things like encoding into packets and checksums.
+	\item \texttt{hibike\_process.py}
+
+	The ``supervisor'' of sensors.
+	Communicates with sensors, sends data to runtime, and reacts to orders from StateManager.
 \end{itemize}
 
 Alongside these main modules, there are various testing modules:
 \begin{itemize}
-	\item \begin{verbatim}virtual_device.py\end{verbatim}
+	\item \texttt{virtual\_device.py}
+
 	Virtual devices, for testing Hibike's read and write capabilities.
-	\item \begin{verbatim}hibike_tester.py\end{verbatim}
+	\item \texttt{hibike\_tester.py}
+
 	A test module that wraps a Hibike process with a nicer interface.
 \end{itemize}
 
