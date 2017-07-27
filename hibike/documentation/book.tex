@@ -5,7 +5,7 @@
 \usepackage{tikz}
 \usetikzlibrary{shapes.geometric, arrows, positioning}
 
-\title{The Hibike and Runtime Guide}
+\title{The Robot Plumbing Guide}
 \date{\today}
 \author{The Hibike Team}
 \begin{document}
@@ -24,11 +24,11 @@ idea to have a plumber on hand when pipes start to leak.
 For our purposes, there are four elements involved in controlling the robot.
 \begin{enumerate}
 	\item Dawn: the main interface that students use. Takes inputs from the controller,
-	and shows data and errors to students.
+	    and shows data and errors to students.
 	\item Runtime: the program in charge of monitoring and communication. Sends and receives data from
-	Dawn, as well as monitoring Hibike and StateManager.
+        Dawn (via Ansible), as well as monitoring Hibike and StateManager.
 	\item StateManager: a data store. Provides a central place to store and retrive data from Hibike
-	and Runtime.
+	    and Runtime.
 	\item Hibike: the program that communicates with sensors. Handles low-level protocol details.
 \end{enumerate}
 \section{An Analogy}
@@ -50,30 +50,35 @@ updates on what they are doing, and fires them if they don't.
         draw=black,
         text=black,
         fill=green!50,
-        minimum size=2cm,
+        minimum size=1.5cm,
         very thick
-    }, label/.style={
+    }, method/.style={
         rectangle,
-        rounded corners,
         draw=black,
-        very thick
+        fill=yellow!50,
     }, arrow/.style={
         very thick, <->, =>stealth
     }]
     \node (smgr) [part] {StateManager};
-    \node (dawn) [part, below=of smgr] {Dawn};
-    \node (student) [part, below=of dawn, yshift=2.5cm] {Student} ;
-    \node (runtime) [part, left=of dawn] {Runtime};
-    \node (hibike) [part, right=of dawn] {Hibike};
+    \node (ansible) [part, right=of smgr] {Ansible};
+    \node (dawn) [part, right=of ansible, xshift=-1cm] {Dawn};
+    \node (student) [part, below=of dawn] {Student} ;
+    \node (runtime) [part, below=of ansible] {Runtime};
+    \node (hibike) [part, below=of smgr] {Hibike};
     \node (smrt1) [part, below=of hibike] {SD 2};
     \node (smrt2) [part, right=of smrt1] {...};
     \node (smrtmore) [part, left=of smrt1] {SD 1};
-    \draw [arrow] (student) -- node[anchor=east] {Screen \& Keyboard} (dawn);
-    \draw [arrow] (smgr) -- node[anchor=east] {Pipe} (runtime);
-    \draw [arrow] (smgr) -- node[anchor=east] {WiFi} (dawn);
-    \draw [arrow] (smgr) -- node[anchor=west] {Queue} (hibike);
-    \draw [arrow] (hibike) -- (smrt1);
-    \draw [arrow] (hibike) -- node[anchor=east] {USB Serial} (smrt2);
+    \node (studentapi) [part, left=of smgr, xshift=1.5cm] {Student API};
+    \node (studentcode) [part, below=of studentapi] {Student Code};
+    \draw [arrow] (studentcode) -- (studentapi);
+    \draw [arrow] (studentapi) -- node[method] {Pipe} (smgr);
+    \draw [arrow] (runtime) -- (ansible);
+    \draw [arrow] (student) -- node[method] {Screen \& Keyboard} (dawn);
+    \draw [arrow] (dawn) -- node[method] {Wifi} (ansible);
+    \draw [arrow] (smgr) -- node[method] {Pipe} (runtime);
+    \draw [arrow] (smgr) -- node[method] {Queue} (hibike);
+    \draw [arrow] (hibike) -- (smrt2);
+    \draw [arrow] (hibike) -- node[method] {USB Serial} (smrt1);
     \draw [arrow] (hibike) -- (smrtmore);
 
 \end{tikzpicture}
@@ -566,6 +571,43 @@ long for Hibike to wait. Therefore, a separate thread is put in charge
 of such things.
 
 \section{Testing}
+Hibike provides a few options for testing protocol compatibility
+and generating data.
+As of now, there is no option to test timing statistics except
+manual probing with an oscilloscope. Work is being done to
+construct a hardware testing rig, but it is not yet complete.
+
+Always test your pull requests on \textit{real hardware} before
+attempting to merge! There are not any Travis tests yet.
+\subsection{\texttt{hibike\_tester.py}}
+This module acts as a fake StateManager, spawning its own
+copy of \texttt{hibike\_process}. You can use this to verify
+that Hibike is sending device data to state manager, and that
+it reacts appropriately to commands sent to it.
 \chapter{StateManager}
 \chapter{Runtime}
+\section{Runtime's Architecture}
+Runtime supervises other processes and handles errors as they occur. It is
+essentially a state machine that reacts to messages from Dawn and student
+code. If any process crashes, Runtime would (ideally) be able to restart
+it seamlessly, although this doesn't happen yet.
+
+\subsection{Runtime Steps}
+\begin{enumerate}
+    \item Spawn StateManager, Hibike, and UdpReceiver.
+    \item Run the state machine.
+        \begin{enumerate}
+            \item Check if E-Stop was triggered.
+            \item Check if we have restarted too many times.
+            \item React to things in the bad things queue.
+        \end{enumerate}
+\end{enumerate}
+
+\section{Ansible}
+\section{Student Code/Student API}
+Student code itself runs in a separate process isolated from runtime, so that
+it is not possible to deadlock runtime from student code. In addition,
+signal handlers are installed to ensure that the code will stop
+working if stalled for too long. The API communicates with StateManager
+through a pipe.
 \end{document}
