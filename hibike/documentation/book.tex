@@ -1,5 +1,6 @@
 \documentclass[12pt]{book}
 \usepackage{tgschola}
+\usepackage{longtable}
 \usepackage[margin=1in]{geometry}
 \usepackage{tikz}
 \usetikzlibrary{shapes.geometric, arrows, positioning}
@@ -247,7 +248,7 @@ Each smart device is assigned an 88-bit UID with the following fields.
   	\end{itemize}
 \end{itemize}
 
-\subsection{Enumerations}
+\subsection{Message Types}
 \begin{center}
     \begin{tabular}{|c|c|}
         \hline
@@ -266,6 +267,93 @@ Each smart device is assigned an 88-bit UID with the following fields.
         \hline
     \end{tabular}
 \end{center}
+
+\subsection{Device Types}
+% This part was automatically converted from the README
+\begin{longtable}[c]{@{}|l|l|l|l|l|l|l|@{}}
+\toprule
+ID & Sensor & Param Number & Param Name & Param Type & Read? &
+Write?\tabularnewline
+\midrule
+\endhead
+\hline
+0x00 & LimitSwitch & 0 & switch0 & bool & yes & no\tabularnewline
+& & 1 & switch1 & bool & yes & no\tabularnewline
+& & 2 & switch2 & bool & yes & no\tabularnewline
+0x01 & LineFollower & 0 & left & float & yes & no\tabularnewline
+& & 1 & center & float & yes & no\tabularnewline
+& & 2 & right & float & yes & no\tabularnewline
+0x02 & Potentiometer & 0 & pot0 & float & yes & no\tabularnewline
+& & 1 & pot1 & float & yes & no\tabularnewline
+& & 2 & pot2 & float & yes & no\tabularnewline
+0x03 & Encoder & 0 & rotation & int16\_t & yes & no\tabularnewline
+0x04 & BatteryBuzzer & 0 & is\_unsafe & bool & yes & no\tabularnewline
+& & 1 & calibrated & bool & yes & no\tabularnewline
+& & 2 & v\_cell1 & float & yes & no\tabularnewline
+& & 3 & v\_cell2 & float & yes & no\tabularnewline
+& & 4 & v\_cell3 & float & yes & no\tabularnewline
+& & 5 & v\_batt & float & yes & no\tabularnewline
+& & 6 & dv\_cell2 & float & yes & no\tabularnewline
+& & 7 & dv\_cell3 & float & yes & no\tabularnewline
+0x05 & TeamFlag & 0 & mode & bool & yes & yes\tabularnewline
+& & 1 & blue & bool & yes & yes\tabularnewline
+& & 2 & yellow & bool & yes & yes\tabularnewline
+& & 3 & led1 & bool & yes & yes\tabularnewline
+& & 4 & led2 & bool & yes & yes\tabularnewline
+& & 5 & led3 & bool & yes & yes\tabularnewline
+& & 6 & led4 & bool & yes & yes\tabularnewline
+0x06 & Grizzly & & & & &\tabularnewline
+0x07 & ServoControl & 0 & servo0 & float & yes & yes\tabularnewline
+& & 1 & servo1 & float & yes & yes\tabularnewline
+0x08 & LinearActuator & & & & &\tabularnewline
+0x09 & ColorSensor & & & & &\tabularnewline
+0x0A & YogiBear & 0 & duty\_cycle & float & yes & yes\tabularnewline
+& & 1 & pid\_pos\_setpoint & float & no & yes\tabularnewline
+& & 2 & pid\_pos\_kp & float & no & yes\tabularnewline
+& & 3 & pid\_pos\_ki & float & no & yes\tabularnewline
+& & 4 & pid\_pos\_kd & float & no & yes\tabularnewline
+& & 5 & pid\_vel\_setpoint & float & no & yes\tabularnewline
+& & 6 & pid\_vel\_kp & float & no & yes\tabularnewline
+& & 7 & pid\_vel\_ki & float & no & yes\tabularnewline
+& & 8 & pid\_vel\_kd & float & no & yes\tabularnewline
+& & 9 & current\_thresh & float & no & yes\tabularnewline
+& & 10 & enc\_pos & float & yes & yes\tabularnewline
+& & 11 & enc\_vel & float & yes & no\tabularnewline
+& & 12 & motor\_current & float & yes & no\tabularnewline
+& & 13 & deadband & float & yes & yes\tabularnewline
+0x0B & RFID & 0 & id & uint8\_t & yes & no\tabularnewline
+& & 1 & detect\_tag & uint8\_t & yes & no\tabularnewline
+0x10 & DistanceSensor & & & & &\tabularnewline
+0x11 & MetalDetector & & & & &\tabularnewline
+0xFFFF & ExampleDevice & 0 & kumiko & bool & yes & yes\tabularnewline
+& & 1 & hazuki & uint8\_t & yes & yes\tabularnewline
+& & 2 & sapphire & int8\_t & yes & yes\tabularnewline
+& & 3 & reina & uint16\_t & yes & yes\tabularnewline
+& & 4 & asuka & int16\_t & yes & yes\tabularnewline
+& & 5 & haruka & uint32\_t & yes & yes\tabularnewline
+& & 6 & kaori & int32\_t & yes & yes\tabularnewline
+& & 7 & natsuki & uint64\_t & yes & yes\tabularnewline
+& & 8 & yuko & int64\_t & yes & yes\tabularnewline
+& & 9 & mizore & float & yes & yes\tabularnewline
+& & 10 & nozomi & double & yes & yes\tabularnewline
+& & 11 & shuichi & uint8\_t & yes & no\tabularnewline
+& & 12 & takuya & uint16\_t & no & yes\tabularnewline
+& & 13 & riko & uint32\_t & yes & no\tabularnewline
+& & 14 & aoi & uint64\_t & no & yes\tabularnewline
+& & 15 & noboru & float & yes & no\tabularnewline
+\bottomrule
+\end{longtable}
+
+\subsection{Error Types}
+\begin{tabular}{|c|c|}
+    \hline
+    Status & Meaning \\
+    \hline
+    0xFD & Unexpected Packet Delimiter \\
+    0xFE & Checksum Error \\
+    0xFF & Generic Error \\
+    \hline
+\end{tabular}
 
 \subsection{Message Descriptions}
 \begin{enumerate}
@@ -335,7 +423,94 @@ Each smart device is assigned an 88-bit UID with the following fields.
             \end{tabular}
         \end{center}
         Direction: BBB $\Rightarrow$ SD
+    \item Device Write: BBB writes attempts to write values to some parameters.
+        \begin{itemize}
+            \item The SD should respond with a DeviceData packet describing the
+                readable params that were actually written to.
+            \item The protocol currently does not support any ACK for write only
+                params.
+        \end{itemize}
 
+        Payload format:
+        \begin{center}
+            \begin{tabular}{|c|c|c|c|}
+                \hline
+                Params & Value 0 & \ldots & Value 15 \\
+                (16 bits) & (Optional and Variable) & \ldots & (Optional and Variable) \\
+                \hline
+            \end{tabular}
+        \end{center}
+        Direction: BBB $\Rightarrow$ SD
+    \item Device Data: SD sends the values of some of its paramters.
+        \begin{itemize}
+            \item This can occur in response to a DeviceWrite/DeviceRead, or when the
+                interval for a SubscriptionResponse occurs.
+        \end{itemize}
+        Payload format:
+        \begin{center}
+            \begin{tabular}{|c|c|c|c|}
+                \hline
+                Params & Value 0 & \ldots & Value 15 \\
+                (16 bits) & (Optional and Variable) & \ldots & (Optional and Variable) \\
+                \hline
+            \end{tabular}
+        \end{center}
+
+        Direction: BBB $\Leftarrow$ SD
+    \item Heart Beat Request: BBB/SD requests SD/BBB heartbeat response for
+        connectivity purposes.
+        \begin{itemize}
+            \item This message pathway is a two way street, both BBB and SD can send
+                requests and send responses to the other
+            \item Upon receiving a Heart Beat Request, a Heart Beat Response message
+                should be immediately sent back
+            \item Payload is currently unused, but can be used for future
+                functionality in keeping track of individual heartbeat requests and
+                responses (for latency purposes)
+        \end{itemize}
+        Payload format:
+        \begin{center}
+            \begin{tabular}{|c|}
+                \hline
+                ID \\
+                (8 bits) \\
+                \hline
+            \end{tabular}
+        \end{center}
+        Direction: BBB $\Leftrightarrow$ SD
+    \item Heart Beat Response: Sent in response to a Heart Beat Request
+        \begin{itemize}
+            \item This message pathway is a two way street, both BBB and SD can
+                receive requests and send responses to the other
+            \item Should only be sent upon receiving a Heart Beat Request
+            \item Payload is currently unused, but can be used for future
+                functionality in keeping track of individual heartbeat requests and
+                responses (for latency purposes)
+        \end{itemize}
+        Payload format:
+        \begin{center}
+            \begin{tabular}{|c|}
+                \hline
+                ID \\
+                (8 bits) \\
+                \hline
+            \end{tabular}
+        \end{center}
+        Direction: BBB $\Leftrightarrow$ SD
+    \item Error Packet: Sent to indicate an error occured.
+        \begin{itemize}
+            \item Currently only used for the BBB to log statistics.
+        \end{itemize}
+        Payload format:
+        \begin{center}
+            \begin{tabular}{|c|}
+                \hline
+                Error Code\\
+                (8 bits) \\
+                \hline
+            \end{tabular}
+        \end{center}
+        Direction: BBB $\Leftarrow$ SD
 
 \end{enumerate}
 
