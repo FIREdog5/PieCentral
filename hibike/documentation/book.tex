@@ -359,6 +359,15 @@ runs in a separate process, is quite time-consuming. Instead of
 sending any device data as soon as it is read, it is easier to bundle many
 reads up and send them all at once. The batch thread is responsible for this.
 
+\paragraph{The Cleanup Thread}
+When a device disconnects, its resources remain in use. The read
+and write threads sit idle, and the serial port remains open. This
+can cause problems if a new device appears on an existing serial port,
+so it is useful to clean up the resources. At the same time, it
+can take up to 30 seconds to close a serial port, which is unacceptably
+long for Hibike to wait. Therefore, a separate thread is put in charge
+of such things.
+
 \section{Testing}
 \chapter{StateManager}
 \chapter{Runtime}
