@@ -101,6 +101,29 @@ Alongside these main modules, there are various testing modules:
 	A test module that wraps a Hibike process with a nicer interface.
 \end{itemize}
 
+\section{Design Choices and Explanations}
+Hibike is packet-based and works over USB, specifically serial.
+
+\paragraph{Why USB?}
+
+In previous years, a custom communications protocol was used, over custom cables.
+This provided the advantage of real-time and configurability; however, debugging was very difficult,
+and developing for smart sensors more so. The Beaglebone doesn't provide real-time guarantees
+anyways, and USB provides cheap, commodity cables and well-tested software.
+
+\paragraph{Why packets?}
+
+Most protocols are packet-based, and serial is not a packet-based communications link.
+Packets make it easy to tell when data begins and ends.
+
+\paragraph{Why serial?}
+
+Arduino provides a well-tested serial library, so communication with any Arduino is easy
+over serial. In addition, implementing and using serial is relatively simple compared
+to many other types of USB connection, such as HID (used by keyboards and mice). Some
+flexibility and speed is lost as a result of this abstraction, but much more is gained
+in ease of use.
+
 \section{The Hibike Protocol}
 \subsection{A Quick Introduction}
 We make a few starting assumptions concerning the endpoints of communication: the device controlling a sensor is a Smart Device (SD), and a Beaglebone Black (BBB) is used as the central control board of each robot and thus is in charge of communicating with each Smart Device. These two communicate with each other via serial: the Beaglebone running pySerial and the Smart Device by using the built-in serial library. As each Smart Device communicates with the Beaglebone on its own separate port, we conveniently have no need to worry about any race conditions or other problems arising from concurrency.
