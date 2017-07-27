@@ -571,6 +571,50 @@ can take up to 30 seconds to close a serial port, which is unacceptably
 long for Hibike to wait. Therefore, a separate thread is put in charge
 of such things.
 
+\section{Smart Devices}
+There are a few types of smart device, each with its own responsibility.
+Smart devices are based on the Arduino platform; we are using
+Arduino Pro Micros because of their relative cheapness (\$4/unit)
+and power. The firmware for these devices is written in C++.
+
+\begin{itemize}
+    \item LimitSwitch
+        
+        The name of this sensor is pretty self-explanatory. It's a limit
+        switch (or two, or three), that is on when pressed.
+    \item LineFollower
+
+        This is a line-following sensor, that detects the brightness of
+        the floor beneath it. There are three sensors: left, middle,
+        and right.
+    \item BatteryBuzzer
+
+        This device monitors the battery voltage and cell balances,
+        making sure that the battery doesn't get dangerously
+        imbalanced or low. It displays the cell voltages
+        on an LED display, and beeps when there are problems.
+        Its functionality may be supplanted in
+        the future by a dedicated chip.
+    \item ServoControl
+
+        The servo controller controls the position of a servo,
+        in the range [-1, 1]. The position can be read or written to.
+
+    \item YogiBear
+
+        This is the new motor controller, put into place after the
+        repeated demise of many a Grizzly. It uses a COTS motor controller,
+        and has the ability to perform PID (supposedly). If Hibike
+        does not respond to heartbeats, it disables itself automatically.
+
+    \item RFID
+
+        This sensor is unfortunately slow; sometimes, it will not read,
+        and the read must be delayed for a cycle. It is also very close
+        range; usually, about 0.5in is the maximum.
+\end{itemize}
+
+
 \section{Testing}
 Hibike provides a few options for testing protocol compatibility
 and generating data.
@@ -593,8 +637,9 @@ and send data on them. It can be used to test Hibike's ability to
 respond to devices.
 \subsection{Unit Tests}
 There are none yet, but you're welcome to add some.
-\chapter{StateManager}
-\chapter{Runtime}
+
+
+\chapter{Runtime and StateManager}
 \section{Runtime's Architecture}
 Runtime supervises other processes and handles errors as they occur. It is
 essentially a state machine that reacts to messages from Dawn and student
@@ -611,12 +656,31 @@ it seamlessly, although this doesn't happen yet.
             \item React to things in the bad things queue.
         \end{enumerate}
 \end{enumerate}
+\section{StateManager}
+StateManager is, in essence, a large key-value store. It is used as
+a centralized place to store state for each process on the robot,
+and, indirectly, as a way to communicate between processes.
+
+\subsection{Architecture}
+StateManager consists of a large number of methods and a few message queues/pipes.
+It receives messages from Hibike, Runtime, and Student Code, and invokes
+one of its functions based on who sent the message, and which message
+was received. Each message type is enumerated in an Enum, located in
+\texttt{runtimeUtil.py}. Every time a key is added to storage,
+a timestamp is stored, although this functionality isn't used for anything.
 
 \section{Ansible}
+Ansible is responsible for communicating with Dawn. To do this, it uses
+TCP and UDP over WiFi, encoding its messages using Protobufs.
 \section{Student Code/Student API}
 Student code itself runs in a separate process isolated from runtime, so that
 it is not possible to deadlock runtime from student code. In addition,
 signal handlers are installed to ensure that the code will stop
 working if stalled for too long. The API communicates with StateManager
 through a pipe.
+
+\section{Testing}
+Currently, Runtime's tests are located in \texttt{studentCode.py}. What
+exists now is pretty basic, consisting mainly of fetching from and
+storing into StateManager.
 \end{document}
