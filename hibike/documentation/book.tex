@@ -2,6 +2,7 @@
 \usepackage{tgschola}
 \usepackage[margin=1in]{geometry}
 \usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows, positioning}
 
 \title{The Hibike and Runtime Guide}
 \date{\today}
@@ -40,6 +41,43 @@ sure that they are working. StateManager is the record-keeper. He stores informa
 that Hibike and Runtime give him, and retrieves it when they ask for it. Hibike is
 in charge of a bunch of interns, the sensors. She asks them to periodically give her
 updates on what they are doing, and fires them if they don't.
+\section{A Diagram of the Stack}
+\begin{center}
+\begin{tikzpicture}[node distance=3.5cm, part/.style={
+        rectangle,
+        rounded corners,
+        draw=black,
+        text=black,
+        fill=green!50,
+        minimum size=2cm,
+        very thick
+    }, label/.style={
+        rectangle,
+        rounded corners,
+        draw=black,
+        very thick
+    }, arrow/.style={
+        very thick, <->, =>stealth
+    }]
+    \node (smgr) [part] {StateManager};
+    \node (dawn) [part, below=of smgr] {Dawn};
+    \node (student) [part, below=of dawn, yshift=2.5cm] {Student} ;
+    \node (runtime) [part, left=of dawn] {Runtime};
+    \node (hibike) [part, right=of dawn] {Hibike};
+    \node (smrt1) [part, below=of hibike] {SD 2};
+    \node (smrt2) [part, right=of smrt1] {...};
+    \node (smrtmore) [part, left=of smrt1] {SD 1};
+    \draw [arrow] (student) -- node[anchor=east] {Screen \& Keyboard} (dawn);
+    \draw [arrow] (smgr) -- node[anchor=east] {Pipe} (runtime);
+    \draw [arrow] (smgr) -- node[anchor=east] {WiFi} (dawn);
+    \draw [arrow] (smgr) -- node[anchor=west] {Queue} (hibike);
+    \draw [arrow] (hibike) -- (smrt1);
+    \draw [arrow] (hibike) -- node[anchor=east] {USB Serial} (smrt2);
+    \draw [arrow] (hibike) -- (smrtmore);
+}
+
+\end{tikzpicture}
+\end{center}
 \chapter{Hibike}
 Hibike is in charge of low-level sensor communication, and all the gory
 details that are involved. It is divided into two modules:
