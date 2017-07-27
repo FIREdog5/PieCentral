@@ -646,6 +646,14 @@ essentially a state machine that reacts to messages from Dawn and student
 code. If any process crashes, Runtime would (ideally) be able to restart
 it seamlessly, although this doesn't happen yet.
 
+\paragraph{Why Pipes over Queues?}
+
+A pipe is more limited than a queue in every respect; it is single-consumer,
+single-producer, as opposed to multi-producer, multi-consumer.
+However, what it lacks in flexibility, it makes up for in speed.
+There is a noticeable difference when using pipes versus queues.
+In a scenario where the flexibility is unnecessary, pipes win.
+
 \subsection{Runtime Steps}
 \begin{enumerate}
     \item Spawn StateManager, Hibike, and UdpReceiver.
