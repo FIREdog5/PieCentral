@@ -1,6 +1,7 @@
 \documentclass[12pt]{book}
 \usepackage{tgschola}
 \usepackage{longtable}
+\usepackage[utf8]{inputenc}
 \usepackage[margin=1in]{geometry}
 \usepackage{tikz}
 \usetikzlibrary{shapes.geometric, arrows, positioning}
@@ -584,6 +585,14 @@ This module acts as a fake StateManager, spawning its own
 copy of \texttt{hibike\_process}. You can use this to verify
 that Hibike is sending device data to state manager, and that
 it reacts appropriately to commands sent to it.
+\subsection{\texttt{virtual\_device.py}}
+This implements virtual devices, which communicate with Hibike
+through a virtual serial port. It is meant to be used with
+\texttt{spawn\_virtual\_device.py} to create virtual devices
+and send data on them. It can be used to test Hibike's ability to
+respond to devices.
+\subsection{Unit Tests}
+There are none yet, but you're welcome to add some.
 \chapter{StateManager}
 \chapter{Runtime}
 \section{Runtime's Architecture}
