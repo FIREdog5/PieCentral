@@ -1,6 +1,7 @@
 \documentclass[12pt]{book}
 \usepackage{tgschola}
 \usepackage{longtable}
+\usepackage{hyperref}
 \usepackage[utf8]{inputenc}
 \usepackage[margin=1in]{geometry}
 \usepackage{tikz}
@@ -540,7 +541,8 @@ Initialization and running happen in this series of steps:
 
 \subsection{An Explanation of the Architecture}
 Each part of the structure of the Hibike process has its place, and has
-been designed in deliberately. Here are explanations for certain parts.
+been designed in deliberately. If threads are used, it is usually because
+of blocking I/O.
 
 \paragraph{Reader and Writer Threads}
 Reading from a serial connection using nonblocking communication means that it
@@ -570,6 +572,12 @@ so it is useful to clean up the resources. At the same time, it
 can take up to 30 seconds to close a serial port, which is unacceptably
 long for Hibike to wait. Therefore, a separate thread is put in charge
 of such things.
+
+\paragraph{The Hotplug Thread}
+In order to detect new devices, something has to scan serial ports
+and check which contain smart sensors. This could be done in the
+main loop, but detection can take hundreds or even thousands of
+milliseconds.
 
 \section{Smart Devices}
 There are a few types of smart device, each with its own responsibility.
@@ -614,6 +622,26 @@ and power. The firmware for these devices is written in C++.
         range; usually, about 0.5in is the maximum.
 \end{itemize}
 
+\section{Hotplug}
+Smart sensor hotplug has been a highly requested feature for some time now.
+There are two halves to hotplug: adding new devices, and disconnecting old ones.
+Both sides of the implementation are based on polling -- periodically checking
+whether new devices have been connected, or old ones removed.
+
+\subsection{Adding New Devices}
+Every period of \texttt{HOTPLUG\_POLL\_INTERVAL} seconds, the hotplug thread
+wakes up and goes looking for new devices. It does this using the existing
+\texttt{get\_working\_serial\_ports}, excluding any ports that are already
+attached to existing devices. Afterwards, it scans these serial ports for smart
+sensors, and adds them to the list of devices, spinning up threads and queues
+as appropriate.
+
+\subsection{Removing Disconnected Devices}
+After adding any new devices, we go on the lookout for old devices that
+have been disconnected. When a device is disconnected, its read and
+write threads crash, and we receive a message in \texttt{error\_queue}.
+If we have only received one message, we assume that the device may only
+have been temporarily disconnected, and resend the message for the next iterat
 
 \section{Testing}
 Hibike provides a few options for testing protocol compatibility
@@ -678,8 +706,78 @@ was received. Each message type is enumerated in an Enum, located in
 a timestamp is stored, although this functionality isn't used for anything.
 
 \section{Ansible}
-Ansible is responsible for communicating with Dawn. To do this, it uses
-TCP and UDP over WiFi, encoding its messages using Protobufs.
+\subsection{Introduction and Overview}\label{introduction-and-overview}
+
+This page will detail how Runtime communicates with Dawn. The code is
+contained primarily in \texttt{Ansible.py}, with relative protos stored
+in
+\href{https://github.com/pioneers/PieCentral/tree/master/ansible-protos}{ansible-protos}.
+
+There are two forms of communication with Dawn: UDP and TCP. UDP is used
+for constant data transfer where it is not critical to not lose packets.
+TCP is used to send data where it is critical to not lose information.
+Communication with Dawn happens in three processes, which are spawned by
+\texttt{runtime.py}. These three processes are \texttt{UDPSendClass},
+\texttt{UDPRecvCLass}, \texttt{TCPClass}. \texttt{UDPSendClass} spawns
+two threads, one for packaging and one for sending.
+\texttt{UDPRecvClass} does not spawn threads, and receives and
+unpackages in succession. \texttt{TCPClass} spawns two threads, one for
+sending and one for receiving.
+
+See \href{https://github.com/pioneers/PieCentral/wiki/Dawn-Runtime-Network-Protocol}{Dawn Runtime Network Protocol}
+for specific networking details, and
+\href{https://developers.google.com/protocol-buffers/docs/pythontutorial}{Google
+Protobuf} for information on how to use protobufs in python.
+
+\subsection{Starting the Processes}\label{starting-the-processes}
+
+All processes are started by \texttt{runtime.py} via the
+\texttt{spawn\_process} function. Initially, on startup, only the
+\texttt{UDPRecvClass} class is spawned. This is because runtime needs to
+learn the IP of Dawn, and can only do so after receiving one packet.
+After determining the IP of Dawn and it is stored into
+\texttt{StateManager}, \texttt{BAD\_EVENTS.NEW\_IP} is triggered which
+now spawns \texttt{UDPSendClass} and \texttt{TCPClass}. Only one Dawn
+instance can be connected at a time. Whenever Dawn disconnects,
+\texttt{BAD\_EVENTS.DAWN\_DISCONNECTED} is triggered which terminates
+all the processes and then respawns just \texttt{UDPRecvClass}. This is
+the same as the initial state, and it repeats the entire process.
+
+\subsection{UDPRecvClass}\label{udprecvclass}
+
+This class runs as a single process. It receives the robot state
+(\texttt{IDLE}, \texttt{AUTONOMOUS}, \texttt{TEELEOP}, \texttt{ESTOP}),
+the team color, and gamepad data.. If there doesn't currently exist an
+IP stored (this is the first time receiving from Dawn), the IP will also
+be saved and the other two communication processes will be spun up. If
+the received state is different from the current state, a command will
+be sent to \texttt{StateManager.py} via the \texttt{BadThingsQueue} to
+switch student code state. If the team flag color has not been set, a
+command (\texttt{SM\_COMMANDS.SET\_TEAM}) will be sent to
+\texttt{StateManager.py} to set the team flag to the appropriate color.
+Then, it takes the unpackaged data containing the gamepad data, and
+sends it to \texttt{StateManager.py}.
+
+\subsection{UDPSendClass}\label{udpsendclass}
+
+This class runs as two threads in a single process. One process
+constantly receives data from \texttt{StateManager}, and packages up via
+protobufs all the sensor information, and the current robot state. It
+then stores the data into a\\
+\texttt{TwoBuffer} object which is shared by both processes. The second
+process takes the packaged data from the \texttt{TwoBuffer}, and sends
+it to Dawn viw UDP.
+
+\subsection{TCPClass}\label{tcpclass}
+
+This class runs as two threads in a single process, one to send and one
+to receive. Both use the same TCP connection. The sender sends console
+logs to Dawn, as well as acknowledges that runtime is ready for student
+code upload. The receiver receives the command that student code is
+going to be uploaded. Furthermore, when the TCP connection is broken (as
+caught by an \texttt{except}), this indicates that Dawn has disconnected
+and \texttt{Ansible} state is reset to idle.
+
 \section{Student Code/Student API}
 Student code itself runs in a separate process isolated from runtime, so that
 it is not possible to deadlock runtime from student code. In addition,
