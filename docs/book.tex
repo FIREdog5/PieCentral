@@ -640,8 +640,11 @@ as appropriate.
 After adding any new devices, we go on the lookout for old devices that
 have been disconnected. When a device is disconnected, its read and
 write threads crash, and we receive a message in \texttt{error\_queue}.
-If we have only received one message, we assume that the device may only
-have been temporarily disconnected, and resend the message for the next iterat
+If we have only received one message from a device, we assume that the device may only
+have been temporarily disconnected, and resend the message for the next iteration.
+If the existing device has a different serial port, then we assume
+that the device has reconnected.
+Otherwise, we tell the cleanup thread to clean the device.
 
 \section{Testing}
 Hibike provides a few options for testing protocol compatibility
