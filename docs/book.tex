@@ -539,6 +539,10 @@ Initialization and running happen in this series of steps:
     \item Afterwards, Hibike receives and reacts to commands from StateManager.
 \end{enumerate}
 
+Hibike devices are represented as a named tuple, with read and write
+threads, a serial port, a write queue, and an instance ID, which
+is generated randomly when the device starts up.
+
 \subsection{An Explanation of the Architecture}
 Each part of the structure of the Hibike process has its place, and has
 been designed in deliberately. If threads are used, it is usually because
@@ -578,6 +582,16 @@ In order to detect new devices, something has to scan serial ports
 and check which contain smart sensors. This could be done in the
 main loop, but detection can take hundreds or even thousands of
 milliseconds.
+
+\paragraph{Instance IDs}
+Devices already have an associated UID, that is (hopefully) unique
+to every device. Why is it necessary to have yet another
+unique identifier? The answer lies with hotplugging: it is
+possible for a device to disconnect and then reconnect.
+In this case, it still has the same UID, so we have no way
+of telling whether it has reconnected. The solution is to associate
+an ID with a particular connection to the device, so that the device
+will have a different instance ID if it reconnects.
 
 \section{Smart Devices}
 There are a few types of smart device, each with its own responsibility.
@@ -642,7 +656,7 @@ have been disconnected. When a device is disconnected, its read and
 write threads crash, and we receive a message in \texttt{error\_queue}.
 If we have only received one message from a device, we assume that the device may only
 have been temporarily disconnected, and resend the message for the next iteration.
-If the existing device has a different serial port, then we assume
+If the existing device has a different instance ID, then we assume
 that the device has reconnected.
 Otherwise, we tell the cleanup thread to clean the device.
 
@@ -653,8 +667,8 @@ As of now, there is no option to test timing statistics except
 manual probing with an oscilloscope. Work is being done to
 construct a hardware testing rig, but it is not yet complete.
 
-Always test your pull requests on \textit{real hardware} before
-attempting to merge! There are not any Travis tests yet.
+\fbox{Always test your pull requests on \textit{real hardware} before
+attempting to merge!}
 \subsection{\texttt{hibike\_tester.py}}
 This module acts as a fake StateManager, spawning its own
 copy of \texttt{hibike\_process}. You can use this to verify
@@ -667,7 +681,11 @@ through a virtual serial port. It is meant to be used with
 and send data on them. It can be used to test Hibike's ability to
 respond to devices.
 \subsection{Unit Tests}
-There are none yet, but you're welcome to add some.
+Unit tests for some of Hibike's modules are located in the
+\texttt{unit\_tests} directory, and make use of the
+\texttt{unittest} Python module. Each function that
+is tested has its own class, and a few test cases. These tests
+should not be considered comprehensive.
 
 
 \chapter{Runtime and StateManager}
