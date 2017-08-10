@@ -663,12 +663,18 @@ Otherwise, we tell the cleanup thread to clean the device.
 \section{Testing}
 Hibike provides a few options for testing protocol compatibility
 and generating data.
-As of now, there is no option to test timing statistics except
-manual probing with an oscilloscope. Work is being done to
-construct a hardware testing rig, but it is not yet complete.
 
 \fbox{Always test your pull requests on \textit{real hardware} before
 attempting to merge!}
+
+\subsection{Latency}
+As of now, there is no option to test timing statistics except
+manual probing with an oscilloscope. Work is being done to
+construct a hardware testing rig, but it is not yet complete.
+Latency has been an issue for Hibike in the past; a simple goal
+to aim for is latency below 25 milliseconds (40Hz), the rate
+that sensors transmit at.
+
 \subsection{\texttt{hibike\_tester.py}}
 This module acts as a fake StateManager, spawning its own
 copy of \texttt{hibike\_process}. You can use this to verify
