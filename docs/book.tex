@@ -33,17 +33,6 @@ For our purposes, there are four elements involved in controlling the robot.
 	    and Runtime.
 	\item Hibike: the program that communicates with sensors. Handles low-level protocol details.
 \end{enumerate}
-\section{An Analogy}
-A simple way to explain the role of each component in the stack, from Dawn to Hibike, is
-as an analogy to a company.
-
-Dawn is the CEO, the main person in charge. Every other system starts or stops
-on her word, and follows her orders to the letter. Runtime is the middle manager. He
-passes information from underlings on to the boss, relays her orders to them, and makes
-sure that they are working. StateManager is the record-keeper. He stores information
-that Hibike and Runtime give him, and retrieves it when they ask for it. Hibike is
-in charge of a bunch of interns, the sensors. She asks them to periodically give her
-updates on what they are doing, and fires them if they don't.
 \section{A Diagram of the Stack}
 \begin{center}
 \begin{tikzpicture}[node distance=3.5cm, part/.style={
@@ -115,7 +104,8 @@ Hibike is packet-based and works over USB, specifically serial.
 \paragraph{Why USB?}
 
 In previous years, a custom communications protocol was used, over custom cables.
-This provided the advantage of real-time and configurability; however, debugging was very difficult,
+This provided the advantage of real-time communications
+and configurability; however, debugging was very difficult,
 and developing for smart sensors more so. The Beaglebone doesn't provide real-time guarantees
 anyways, and USB provides cheap, commodity cables and well-tested software.
 
@@ -816,4 +806,15 @@ through a pipe.
 Currently, Runtime's tests are located in \texttt{studentCode.py}. What
 exists now is pretty basic, consisting mainly of fetching from and
 storing into StateManager.
+
+\chapter{Glossary}
+\begin{itemize}
+    \item Beaglebone Black (BBB) -- a single-board computer running Ubuntu Linux.
+        More information at \url{http://beagleboard.org/black}.
+    \item Smart Sensor or Smart Device (SD) -- a sensor, such as a switch
+        or RFID reader, that is controlled by an attached Arduino.
+\end{itemize}
+
 \end{document}
+
+
