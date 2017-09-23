@@ -24,7 +24,7 @@ class HibikeCommunicator:
       newProcess = multiprocessing.Process(target=hp.hibike_process, name="hibike_sim", args=[badThingsQueue,self.stateQueue, pipeFromChild])
       newProcess.daemon = True
       newProcess.start()
-      enumerate()
+      self.enumerate()
       
       # Creates the list of uids
       self.uids = set()
@@ -45,6 +45,7 @@ class HibikeCommunicator:
       """
       while True:
          output = self.stateQueue.get()
+         print("Output: ", output)
 
          #Now, get or remove the uid if it is appropriate to do so
          command = output[0]
@@ -60,19 +61,36 @@ class HibikeCommunicator:
    
          #If it is a device value, cache it in the dictionary.
          if command == "device_values":
-             uid = output[1][0]
-             params_values = output[1][1]
+             try:
+                uid = output[1][0].keys()[0]
+             except TypeError:
+                print("Dict Keys TypeError")
+                continue
+             print("UID: ", uid, "\n")
+             try:
+                params_values = output[1][0][uid]
+             except IndexError:
+                print("No UIDs detected for a device_values request")
+                params_values = [{}]
+             
              for param_val_tuple in params_values:
+                try:
+                    parameter = param_val_tuple[0]
+                    value = param_val_tuple[1]
+                except KeyError: # Treat a tuple with a missing value as if it didn't exist, except to print an error message
+                    print("Error: Params and Values tuple ", param_val_tuple, " has a missing value")
+                    continue
                 if uid not in self.device_values_cache:
-                   self.device_values_cache.update({uid: {param_val_tuple[0]: (param_val_tuple[1], time.time())}})  
+                   self.device_values_cache.update({uid: {parameter: (value, time.time())}})
                 else:
-                   self.device_values_cache[uid].update({param_val_tuple[0]: (param_val_tuple[1], time.time())})
+                   self.device_values_cache[uid].update({parameter: (value, time.time())})
    
    def get_last_cached(self, uid, param):
       """
          Returns a tuple of the value and the timestamp of the last device_values package recieved from a uid and a parameter
          Precondition: a device_data must have been recieved from the param before calling this function
       """
+      print("Where the error is coming from: ", self.device_values_cache)
       return self.device_values_cache[uid][param]
 
    
@@ -136,6 +154,8 @@ def device_comms(comms, uid_type_tuple, script, item_delay, repeat_delay):
         Precondition: uid_type_tuple must be an element of comms.get_uids_and_types()
         Precondition: script is a list of function calls, usually HibikeCommunicator functions or print (the latter to print out cached data and other output from the various systems
    """
+   print("UID type tuple: ", uid_type_tuple)
+   
    uid = uid_type_tuple[0]
    type = uid_type_tuple[1]
    
@@ -155,11 +175,14 @@ if __name__ == "__main__":
    time.sleep(3)
             
    device_info = comms.get_uids_and_types()
-   print(device_info)
         
    # For each device, start a thread that calls the device_comms function with a script of your choice
    # This function has a set of standard scripts and delays for each device, but you can choose whatever scripts you like
    for uid_type_tuple in device_info:
+      uid = uid_type_tuple[0]
+      type = uid_type_tuple[1]
+      print("Device info packet: ", uid_type_tuple)
+      print("Type: ", type)
       if type == "LimitSwitch":
          script = [comms.subscribe(uid, 100, ["switch0", "switch1", "switch2", "switch3"]), print("Uid: ", uid,"\n", "Last cached: ", comms.get_last_cached(uid, "switch0"), "\n", comms.get_last_cached(uid, "switch1"), "\n")]
          item_delay = 0.05

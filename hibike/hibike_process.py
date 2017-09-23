@@ -230,7 +230,10 @@ def hibike_process(bad_things_queue, state_queue, pipe_from_child):
         serial_port = serials[index]
         pack = spin_up_device(serial_port, uid, state_queue, batched_data, error_queue)
         devices[uid] = pack
-
+    
+    # Temporary here to report on an error
+    print("Devices: ", devices, "\n")
+    
     batch_thread = threading.Thread(target=batch_data, args=(batched_data, state_queue))
     batch_thread.start()
     hotplug_thread = threading.Thread(target=hotplug,
