@@ -5,26 +5,29 @@
 auto lo
 iface lo inet loopback
 
-# The primary network interface
-allow-hotplug eth0
+auto eth0
 iface eth0 inet static
-    address 192.168.13.100
-    network 192.168.13.0
+    address 192.168.6.2
     netmask 255.255.255.0
-    gateway 192.168.13.1
-#iface eth0 inet dhcp
-# Example to keep MAC address between reboots
-#hwaddress ether DE:AD:BE:EF:CA:FE
+    network 192.168.0.0
+    gateway 192.168.0.1
 
-# The secondary network interface
-#auto eth1
-#iface eth1 inet dhcp
-
-# WiFi Example
 auto ra0
-iface ra0 inet dhcp
-    wpa-ssid "Mother Base"
-    wpa-psk  "pieisgreat"
+iface ra0 inet manual
+wpa-roam /etc/wpa_supplicant/wpa_supplicant.conf
+
+# From the networking spec
+iface field inet static
+    address 192.168.128.<field-addr>
+    gateway 192.168.128.1
+    netmask 255.255.255.0
+    network 192.168.128.0
+
+iface team inet static
+    address 192.168.0.<team-addr>
+    netmask 255.255.255.0
+    network 192.168.0.0
+    gateway 192.168.0.1
 
 # Ethernet/RNDIS gadget (g_ether)
 # Used by: /opt/scripts/boot/autoconfigure_usb0.sh

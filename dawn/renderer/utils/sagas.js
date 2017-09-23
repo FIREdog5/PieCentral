@@ -6,20 +6,20 @@
 
 import fs from 'fs';
 import _ from 'lodash';
-import { delay, eventChannel, takeEvery } from 'redux-saga';
-import { call, cps, fork, put, race, select, take } from 'redux-saga/effects';
+import { delay, eventChannel } from 'redux-saga';
+import { call, cps, fork, put, race, select, take, takeEvery } from 'redux-saga/effects';
 import { ipcRenderer, remote } from 'electron';
-import { openFileSucceeded } from '../actions/EditorActions';
+import { addAsyncAlert } from '../actions/AlertActions';
+import { openFileSucceeded, saveFileSucceeded } from '../actions/EditorActions';
+import { toggleFieldControl } from '../actions/FieldActions';
 import { updateGamepads } from '../actions/GamepadsActions';
 import { runtimeConnect, runtimeDisconnect } from '../actions/InfoActions';
-import { peripheralDisconnect } from '../actions/PeripheralActions';
+import { TIMEOUT, defaults, logging } from '../utils/utils';
+
+
+const Client = require('ssh2').Client;
 
 let timestamp = Date.now();
-const dialog = remote.dialog;
-
-if (!Date.now) {
-  Date.now = () => { new Date().getTime(); };
-}
 
 /**
  * The electron showOpenDialog interface does not work well
@@ -31,7 +31,7 @@ if (!Date.now) {
  */
 function openFileDialog() {
   return new Promise((resolve, reject) => {
-    dialog.showOpenDialog({
+    remote.dialog.showOpenDialog({
       filters: [{ name: 'python', extensions: ['py'] }],
     }, (filepaths) => {
       // If filepaths is undefined, the user did not specify a file.
@@ -52,7 +52,7 @@ function openFileDialog() {
  */
 function saveFileDialog() {
   return new Promise((resolve, reject) => {
-    dialog.showSaveDialog({
+    remote.dialog.showSaveDialog({
       filters: [{ name: 'python', extensions: ['py'] }],
     }, (filepath) => {
       // If filepath is undefined, the user did not specify a file.
@@ -78,11 +78,11 @@ function saveFileDialog() {
  */
 function unsavedDialog(action) {
   return new Promise((resolve, reject) => {
-    dialog.showMessageBox({
+    remote.dialog.showMessageBox({
       type: 'warning',
       buttons: [`Save and ${action}`, `Discard and ${action}`, 'Cancel action'],
       title: 'You have unsaved changes!',
-      message: `You are trying to ${action} a new file, but you have unsaved changes to 
+      message: `You are trying to ${action} a new file, but you have unsaved changes to
 your current one. What do you want to do?`,
     }, (res) => {
       // 'res' is an integer corrseponding to index in button list above.
@@ -101,19 +101,16 @@ your current one. What do you want to do?`,
  */
 function* writeFile(filepath, code) {
   yield cps(fs.writeFile, filepath, code);
-  yield put({
-    type: 'SAVE_FILE_SUCCEEDED',
-    code,
-    filepath,
-  });
+  yield put(saveFileSucceeded(code, filepath));
 }
 
+const editorState = state => ({
+  filepath: state.editor.filepath,
+  code: state.editor.editorCode,
+});
+
 function* saveFile(action) {
-  const selector = state => ({
-    filepath: state.editor.filepath,
-    code: state.editor.editorCode,
-  });
-  const result = yield select(selector);
+  const result = yield select(editorState);
   let filepath = result.filepath;
   const code = result.code;
   // If the action is a "save as" OR there is no filepath (ie, a new file)
@@ -123,20 +120,21 @@ function* saveFile(action) {
       filepath = yield call(saveFileDialog);
       yield* writeFile(filepath, code);
     } catch (e) {
-      console.log('No filename specified, file not saved.');
+      logging.log('No filename specified, file not saved.');
     }
   } else {
     yield* writeFile(filepath, code);
   }
 }
 
+const editorSavedState = state => ({
+  savedCode: state.editor.latestSaveCode,
+  code: state.editor.editorCode,
+});
+
 function* openFile(action) {
   const type = (action.type === 'OPEN_FILE') ? 'open' : 'create';
-  const selector = state => ({
-    savedCode: state.editor.latestSaveCode,
-    code: state.editor.editorCode,
-  });
-  const result = yield select(selector);
+  const result = yield select(editorSavedState);
   let res = 1;
   if (result.code !== result.savedCode) {
     res = yield call(unsavedDialog, type);
@@ -154,13 +152,13 @@ function* openFile(action) {
         const data = yield cps(fs.readFile, filepath, 'utf8');
         yield put(openFileSucceeded(data, filepath));
       } catch (e) {
-        console.log('No filename specified, no file opened.');
+        logging.log('No filename specified, no file opened.');
       }
     } else if (type === 'create') {
       yield put(openFileSucceeded('', null));
     }
   } else {
-    console.log(`File ${type} canceled.`);
+    logging.log(`File ${type} canceled.`);
   }
 }
 
@@ -176,8 +174,8 @@ function* runtimeHeartbeat() {
     // Start a race between a delay and receiving an UPDATE_STATUS action from
     // runtime. Only the winner will have a value.
     const result = yield race({
-      update: take('UPDATE_STATUS'),
-      timeout: call(delay, 1000), // The delay is 1000 ms, or 1 second.
+      update: take('PER_MESSAGE'),
+      timeout: call(delay, TIMEOUT),
     });
 
     // If update wins, we assume we are connected, otherwise disconnected.
@@ -189,37 +187,14 @@ function* runtimeHeartbeat() {
   }
 }
 
-/**
- * This saga removes peripherals that have not been updated by Runtime
- * recently (they are assumed to be disconnected).
- */
-function* reapPeripheral(action) {
-  const id = String(action.peripheral.uid.high) + String(action.peripheral.uid.low);
-  // Start a race between a delay and receiving an UPDATE_PERIPHERAL action for
-  // this same peripheral (per peripheral.id). Only the winner has a value.
-  const result = yield race({
-    peripheralUpdate: take(nextAction => (
-      nextAction.type === 'UPDATE_PERIPHERAL' && (String(nextAction.peripheral.uid.high)
-      + String(nextAction.peripheral.uid.low)) === id
-    )),
-    timeout: call(delay, 3000), // The delay is 3000 ms, or 3 seconds.
-  });
-
-  // If the delay won, then we have not received an update for this peripheral
-  // recently and remove it from our state.
-  if (result.timeout) {
-    yield put(peripheralDisconnect(id));
-  }
-}
-
 const _timestamps = [0, 0, 0, 0];
 
 function _needToUpdate(newGamepads) {
   return _.some(newGamepads, (gamepad, index) => {
-    if (!_.isUndefined(gamepad) && (gamepad.timestamp > _timestamps[index])) {
+    if (gamepad != null && (gamepad.timestamp > _timestamps[index])) {
       _timestamps[index] = gamepad.timestamp;
       return true;
-    } else if (_.isUndefined(gamepad) && !_.isNull(_timestamps[index])) {
+    } else if (gamepad == null && _timestamps[index] != null) {
       _timestamps[index] = null;
       return true;
     }
@@ -252,7 +227,7 @@ function* ansibleGamepads() {
   while (true) {
     // navigator.getGamepads always returns a reference to the same object. This
     // confuses redux, so we use assignIn to clone to a new object each time.
-    const newGamepads = _.assignIn({}, navigator.getGamepads());
+    const newGamepads = Array.prototype.slice.call(navigator.getGamepads());
     if (_needToUpdate(newGamepads) || Date.now() - timestamp > 100) {
       const formattedGamepads = formatGamepads(newGamepads);
       yield put(updateGamepads(formattedGamepads));
@@ -299,20 +274,244 @@ function* ansibleSaga() {
       yield put(action);
     }
   } catch (e) {
-    console.log(e.stack);
+    logging.log(e.stack);
   }
 }
+
+const gamepadsState = state => ({
+  studentCodeStatus: state.info.studentCodeStatus,
+  gamepads: state.gamepads.gamepads,
+});
+
+const lcmState = state => ({
+  connectionStatus: state.info.connectionStatus,
+  runtimeStatus: state.info.runtimeStatus,
+});
 
 /**
  * Send the store to the main process whenever it changes.
  */
 function* updateMainProcess() {
-  const stateSlice = yield select(state => ({
-    studentCodeStatus: state.info.studentCodeStatus,
-    gamepads: state.gamepads.gamepads,
-  }));
+  const stateSlice = yield select(gamepadsState);
   ipcRenderer.send('stateUpdate', stateSlice);
+  const lcmSlice = yield select(lcmState);
+  ipcRenderer.send('LCM_STATUS_UPDATE', lcmSlice);
 }
+
+function* restartRuntime() {
+  const conn = new Client();
+  const stateSlice = yield select(state => ({
+    runtimeStatus: state.info.runtimeStatus,
+    ipAddress: state.info.ipAddress,
+  }));
+  if (stateSlice.runtimeStatus && stateSlice.ipAddress !== defaults.IPADDRESS) {
+    const network = yield call(() => new Promise((resolve) => {
+      conn.on('ready', () => {
+        conn.exec('sudo systemctl restart runtime.service',
+          { pty: true }, (uperr, stream) => {
+            if (uperr) {
+              resolve(1);
+            }
+            stream.write(`${defaults.PASSWORD}\n`);
+            stream.on('exit', (code) => {
+              logging.log(`Runtime Restart: Returned ${code}`);
+              conn.end();
+              resolve(0);
+            });
+          });
+      }).connect({
+        debug: (inpt) => {
+          logging.log(inpt);
+        },
+        host: stateSlice.ipAddress,
+        port: defaults.PORT,
+        username: defaults.USERNAME,
+        password: defaults.PASSWORD,
+      });
+    }));
+    if (network === 1) {
+      yield addAsyncAlert(
+        'Runtime Restart Error',
+        'Dawn was unable to run restart commands. Please check your robot connectivity.',
+      );
+    }
+  }
+}
+
+function* downloadStudentCode() {
+  const conn = new Client();
+  const stateSlice = yield select(state => ({
+    runtimeStatus: state.info.runtimeStatus,
+    ipAddress: state.info.ipAddress,
+  }));
+  const path = `${require('electron').remote.app.getPath('desktop')}/Dawn`; // eslint-disable-line global-require
+  try {
+    fs.statSync(path);
+  } catch (fileErr) {
+    fs.mkdirSync(path);
+  }
+  if (stateSlice.runtimeStatus && stateSlice.ipAddress !== defaults.IPADDRESS) {
+    const errors = yield call(() => new Promise((resolve) => {
+      conn.on('ready', () => {
+        conn.sftp((err, sftp) => {
+          if (err) resolve(1);
+          sftp.fastGet('./PieCentral/runtime/studentCode.py', `${path}/robotCode.py`,
+            { step: (totalTransferred, chunk, total) => {
+              if (totalTransferred === total) {
+                resolve(0);
+              }
+            },
+            },
+            (err2) => {
+              logging.log(err2);
+              resolve(2);
+            });
+        });
+      }).connect({
+        debug: (inpt) => {
+          logging.log(inpt);
+        },
+        host: stateSlice.ipAddress,
+        port: defaults.PORT,
+        username: defaults.USERNAME,
+        password: defaults.PASSWORD,
+      });
+    }));
+    switch (errors) {
+      case 0: {
+        const data = yield cps(fs.readFile, `${path}/robotCode.py`, 'utf8');
+        yield put(openFileSucceeded(data, `${path}/robotCode.py`));
+        logging.log('Succeeded in Download');
+        break;
+      }
+      case 1: {
+        yield addAsyncAlert('Robot File Download Error',
+          'Dawn was unable to connect to the robot for file download.',
+        );
+        break;
+      }
+      case 2: {
+        yield addAsyncAlert('Robot File Download Error',
+          'Dawn was unable to download student code fully.',
+        );
+        break;
+      }
+      default: {
+        yield addAsyncAlert('Robot File Download Error',
+          'Dawn was unable to download student code due to some unknown error.',
+        );
+        break;
+      }
+    }
+  }
+}
+
+function* tcpConfirmation() {
+  const result = yield race({
+    update: take('NOTIFICATION_RECEIVED'),
+    timeout: call(delay, TIMEOUT), // The delay is 5000 ms, or 5 second.
+  });
+
+  if (!result.update) {
+    this.logger.log('Runtime failed to confirm');
+    yield addAsyncAlert('Upload Issue',
+      'Runtime Unresponsive',
+    );
+  } else {
+    const stateSlice = yield select(state => ({
+      ipAddress: state.info.ipAddress,
+      filepath: state.editor.filepath,
+    }));
+    const conn = new Client();
+    const errors = yield call(() => new Promise((resolve) => {
+      conn.on('error', (err) => {
+        logging.log(err);
+        resolve(3);
+      });
+
+      conn.on('ready', () => {
+        conn.sftp((err, sftp) => {
+          if (err) {
+            logging.log(err);
+            resolve(1);
+          }
+          sftp.fastPut(stateSlice.filepath, './PieCentral/runtime/studentCode.py',
+            {
+              step: (totalTransferred, chunk, total) => {
+                if (totalTransferred === total) {
+                  resolve(0);
+                }
+              },
+            },
+            (err2) => {
+              if (err2) {
+                logging.log(err2);
+                resolve(2);
+              }
+            });
+        });
+      }).connect({
+        debug: (input) => {
+          logging.log(input);
+        },
+        host: stateSlice.ipAddress,
+        port: defaults.PORT,
+        username: defaults.USERNAME,
+        password: defaults.PASSWORD,
+      });
+    }));
+
+    switch (errors) {
+      case 0: {
+        yield addAsyncAlert('Upload Success',
+          'File Uploaded Successfully',
+        );
+        break;
+      }
+      case 1: {
+        yield addAsyncAlert('Upload Issue',
+          'SFTP session could not be initiated',
+        );
+        break;
+      }
+      case 2: {
+        yield addAsyncAlert('Upload Issue',
+          'File failed to be transmitted',
+        );
+        break;
+      }
+      case 3: {
+        yield addAsyncAlert('Upload Issue',
+          'Robot could not be connected.',
+        );
+        break;
+      }
+      default: {
+        yield addAsyncAlert('Upload Issue',
+          'Unknown Error',
+        );
+        break;
+      }
+    }
+    setTimeout(() => {
+      conn.end();
+    }, 50);
+  }
+}
+
+function* handleFieldControl() {
+  const stateSlice = yield select(state => ({
+    fieldControlStatus: state.fieldStore.fieldControl,
+  }));
+  if (stateSlice.fieldControlStatus) {
+    yield put(toggleFieldControl(false));
+    ipcRenderer.send('LCM_TEARDOWN');
+  } else {
+    yield put(toggleFieldControl(true));
+    ipcRenderer.send('LCM_INITIALIZE');
+  }
+}
+
 
 /**
  * The root saga combines all the other sagas together into one.
@@ -322,10 +521,29 @@ export default function* rootSaga() {
     takeEvery('OPEN_FILE', openFile),
     takeEvery('SAVE_FILE', saveFile),
     takeEvery('CREATE_NEW_FILE', openFile),
-    takeEvery('UPDATE_PERIPHERAL', reapPeripheral),
     takeEvery('UPDATE_MAIN_PROCESS', updateMainProcess),
+    takeEvery('RESTART_RUNTIME', restartRuntime),
+    takeEvery('DOWNLOAD_CODE', downloadStudentCode),
+    takeEvery('NOTIFICATION_SENT', tcpConfirmation),
+    takeEvery('TOGGLE_FIELD_CONTROL', handleFieldControl),
     fork(runtimeHeartbeat),
     fork(ansibleGamepads),
     fork(ansibleSaga),
   ];
 }
+
+export {
+  openFileDialog,
+  unsavedDialog,
+  openFile,
+  writeFile,
+  editorState,
+  editorSavedState,
+  saveFileDialog,
+  saveFile,
+  runtimeHeartbeat,
+  gamepadsState,
+  updateMainProcess,
+  ansibleReceiver,
+  ansibleSaga,
+}; // for tests

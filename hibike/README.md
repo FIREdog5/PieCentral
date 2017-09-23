@@ -1,5 +1,5 @@
 # hibike 2.0!
-Hibike is a lightweight communications protocol designed for the passing of sensor data for the 
+Hibike is a lightweight communications protocol designed for the passing of sensor data for the
 PiE Robotics Kit, a.k.a Frank or "Kit Minimum" to some.
 
 #### This branch contains documentation and implementation for the 2016-2017 version of the hibike protocol, which should feature iterative improvements over last year's protocol
@@ -81,19 +81,19 @@ depicted below. A more complete description of each field is given below the dia
     |  (8 bits)  |      (8 bits)    |   (length varies)   |  (8 bits)  |
     +------------+------------------+---------------------+------------+
 
-- Message ID 
-  - an 8-bit ID specifying the type of message being sent or received. 
+- Message ID
+  - an 8-bit ID specifying the type of message being sent or received.
   - More information about each message type is specified in the following sections.
 
-- Payload Length 
+- Payload Length
   - an 8-bit unsigned integer specifying the number of bytes in the payload
 
 - Payload
-  - Varies wildly depending on the type of message being sent. 
+  - Varies wildly depending on the type of message being sent.
   - This will, of course, be described in more detail in Section 4.
 
 - Checksum
-  - An 8-bit checksum placed at the very end of every message. 
+  - An 8-bit checksum placed at the very end of every message.
   - Really, any checksum scheme appending 8-bits to the end of the message will do, but an exceedingly simple one recommended exactly for its simplicity is making the checksum the XOR of every other byte in the message.
 
 ## Section 2: UID Format
@@ -109,7 +109,7 @@ Each Smart Device will be assigned an 88-bit UID with the following data.
     - Device types are enumerated in Section 5
 
 - Year
-  - 8-bit ID corresponding to the competition year that the Smart Device was manufactured for. 
+  - 8-bit ID corresponding to the competition year that the Smart Device was manufactured for.
   - The 2015-2016 season will correspond to 0x00
 
 - ID
@@ -121,7 +121,18 @@ Each Smart Device will be assigned an 88-bit UID with the following data.
 - Hibike abstracts every smart device as a set of parameters that map to values
 - Each smart device contains some number of paramaters, which can be read/written to.
 
-- Paramaters can have many types, such as bool, int, short, byte, float, etc.
+- Parameters can have many types.  The following types are supported
+-- bool
+-- uint8_t
+-- int8_t
+-- uint16_t
+-- int16_t
+-- uint32_t
+-- int32_t
+-- uint64_t
+-- int64_t
+-- float
+-- double.  CAUTION: Arduino's doubles are only 4 bytes long (same as a float), so an Arduino's Double is the same as python's Float.  Do not use this type unless your arduino is actually cranking out 8 bytes.
 - Some paramaters are read only, some are write only, and some support both.
 - A config file will describe the paramaters for each Device Type (name, type, permissions).
 - Some packets encode sets of parameters in the form of bitmaps.
@@ -152,7 +163,10 @@ Message ID Enumeration:
 |  0x12   |   Subscription Response  |
 |  0x13   |       Device Read        |
 |  0x14   |       Device Write       |
-|  0x15   |      Device Data         |
+|  0x15   |       Device Data        |
+|  0x16   |      Device Disable      |
+|  0x17   |    Heart Beat Request    |
+|  0x18   |   Heart Beat Response    |
 |  0xFF   |           Error          |
 
 Device Type Enumeration:
@@ -162,40 +176,49 @@ Device Type Enumeration:
 |  0x00   | LimitSwitch    | 0            | switch0    | bool       | yes   | no     |
 |         |                | 1            | switch1    | bool       | yes   | no     |
 |         |                | 2            | switch2    | bool       | yes   | no     |
-|         |                | 3            | switch3    | bool       | yes   | no     |
 |  0x01   | LineFollower   | 0            | left       | float      | yes   | no     |
 |         |                | 1            | center     | float      | yes   | no     |
 |         |                | 2            | right      | float      | yes   | no     |
 |  0x02   | Potentiometer  | 0            | pot0       | float      | yes   | no     |
 |         |                | 1            | pot1       | float      | yes   | no     |
 |         |                | 2            | pot2       | float      | yes   | no     |
-|         |                | 3            | pot3       | float      | yes   | no     |
 |  0x03   | Encoder        | 0            | rotation   | int16_t    | yes   | no     |
-|  0x04   | BatteryBuzzer  | 0            | connected  | bool       | yes   | no     |
-|         |                | 1            | safe       | bool       | yes   | no     |
-|         |                | 2            | cell1      | float      | yes   | no     |
-|         |                | 3            | cell2      | float      | yes   | no     |
-|         |                | 4            | cell3      | float      | yes   | no     |
-|         |                | 5            | total      | float      | yes   | no     |
-|         |                | 6            | calibrate | bool       | no    | yes    |
+|  0x04   | BatteryBuzzer  | 0            | is_unsafe  | bool       | yes   | no     |
+|         |                | 1            | calibrated | bool       | yes   | no     |
+|         |                | 2            | v_cell1    | float      | yes   | no     |
+|         |                | 3            | v_cell2    | float      | yes   | no     |
+|         |                | 4            | v_cell3    | float      | yes   | no     |
+|         |                | 5            | v_batt     | float      | yes   | no     |
+|         |                | 6            | dv_cell2   | float      | yes   | no     |
+|         |                | 7            | dv_cell3   | float      | yes   | no     |
 |  0x05   | TeamFlag       | 0            | mode       | bool       | yes   | yes    |
 |         |                | 1            | blue       | bool       | yes   | yes    |
 |         |                | 2            | yellow     | bool       | yes   | yes    |
-|         |                | 3            | s1         | bool       | yes   | yes    |
-|         |                | 4            | s2         | bool       | yes   | yes    |
-|         |                | 5            | s3         | bool       | yes   | yes    |
-|         |                | 6            | s3         | bool       | yes   | yes    |
+|         |                | 3            | led1       | bool       | yes   | yes    |
+|         |                | 4            | led2       | bool       | yes   | yes    |
+|         |                | 5            | led3       | bool       | yes   | yes    |
+|         |                | 6            | led4       | bool       | yes   | yes    |
 |  0x06   | Grizzly        |              |            |            |       |        |
-|  0x07   | ServoControl   | 0            | servo0     | uint8_t    | yes   | yes    |
-|         |                | 1            | enable0    | bool       | yes   | yes    |
-|         |                | 2            | servo1     | uint8_t    | yes   | yes    |
-|         |                | 3            | enable1    | bool       | yes   | yes    |
-|         |                | 4            | servo2     | uint8_t    | yes   | yes    |
-|         |                | 5            | enable2    | bool       | yes   | yes    |
-|         |                | 6            | servo3     | uint8_t    | yes   | yes    |
-|         |                | 7            | enable3    | bool       | yes   | yes    |
+|  0x07   | ServoControl   | 0            | servo0     | float      | yes   | yes    |
+|         |                | 1            | servo1     | float      | yes   | yes    |
 |  0x08   | LinearActuator |              |            |            |       |        |
 |  0x09   | ColorSensor    |              |            |            |       |        |
+|  0x0A   | YogiBear       | 0            | duty_cycle          | float      | yes   | yes    |
+|         |                | 1            | pid_pos_setpoint    | float      | no    | yes    |
+|         |                | 2            | pid_pos_kp          | float      | no    | yes    |
+|         |                | 3            | pid_pos_ki          | float      | no    | yes    |
+|         |                | 4            | pid_pos_kd          | float      | no    | yes    |
+|         |                | 5            | pid_vel_setpoint    | float      | no    | yes    |
+|         |                | 6            | pid_vel_kp          | float      | no    | yes    |
+|         |                | 7            | pid_vel_ki          | float      | no    | yes    |
+|         |                | 8            | pid_vel_kd          | float      | no    | yes    |
+|         |                | 9            | current_thresh      | float      | no    | yes    |
+|         |                | 10           | enc_pos             | float      | yes   | yes    |
+|         |                | 11           | enc_vel             | float      | yes   | no     |
+|         |                | 12           | motor_current       | float      | yes   | no     |
+|         |                | 13           | deadband            | float      | yes   | yes    |
+|  0x0B   | RFID           | 0            | id      | uint8_t | yes | no |
+|         |                | 1            | detect_tag | uint8_t       | yes   | no |
 |  0x10   | DistanceSensor |              |            |            |       |        |
 |  0x11   | MetalDetector  |              |            |            |       |        |
 |  0xFFFF | ExampleDevice  | 0            | kumiko     | bool       | yes   | yes    |
@@ -216,11 +239,11 @@ Device Type Enumeration:
 |         |                | 15           | noboru     | float      | yes   | no     |
 
 
-     
+
 Note: These assignments are totally random as of now. We need to figure
       out exactly what devices we are supporting.
-Note: As of now, Grizzlies are not supported by Hibike (pyGrizzly should 
-      be used instead) But they should be in the near future, to preserve 
+Note: As of now, Grizzlies are not supported by Hibike (pyGrizzly should
+      be used instead) But they should be in the near future, to preserve
       the idea of treating every peripheral as a SmartDevice.
 
 Error ID Enumeration:
@@ -240,7 +263,7 @@ Note: These assignments are also fairly random and may not all even be
 
 1. Ping: BBB pings SD for enumeration purposes.
          The SD will respond with a Sub Response packet.
-     
+
     Payload format:
 
         +---------------+
@@ -251,9 +274,9 @@ Note: These assignments are also fairly random and may not all even be
     Direction:
     BBB --> SD
 
-2. Sub Request: BBB requests data to be returned at a given interval. 
-    - Params is a bitmap of paramaters being subscribed to. 
-    - The SD will respond with a Sub Response packet 
+2. Sub Request: BBB requests data to be returned at a given interval.
+    - Params is a bitmap of paramaters being subscribed to.
+    - The SD will respond with a Sub Response packet
       with a delay and bitmap of params it will acutally send values for,
       which may not be what was requested, due to nonexistent and write-only parameters.
     - If too many parameters are subscribed to, the Smart Device may have to send multiple DeviceData packets at each interval.
@@ -271,7 +294,7 @@ Note: These assignments are also fairly random and may not all even be
     BBB --> SD
 
 3. Sub Response: SD sends (essentially) an ACK packet with its UID, Params subscribed to, and delay
-    
+
   Payload format:
 
         +---------------+--------------------+--------------------------+
@@ -282,10 +305,10 @@ Note: These assignments are also fairly random and may not all even be
     Direction:
     BBB <-- SD
 
-4. Device Read: BBB requests some values from the SD. 
-    - The SD should respond with DeviceData packets with values for all the readable params that were requested. 
+4. Device Read: BBB requests some values from the SD.
+    - The SD should respond with DeviceData packets with values for all the readable params that were requested.
     - If all the values cannot fit in one packet, multiple will be sent.
-    
+
   Payload format:
 
         +---------------+
@@ -297,9 +320,9 @@ Note: These assignments are also fairly random and may not all even be
     BBB --> SD
 
 5. Device Write: BBB writes attempts to write values to some parameters.
-    - The SD should respond with a DeviceData packet describing the readable params that were actually written to. 
+    - The SD should respond with a DeviceData packet describing the readable params that were actually written to.
     - The protocol currently does not support any ACK for write only params.
-    
+
   Payload format:
 
         +-------------------+-----------------------------+     +-----------------------------+
@@ -310,9 +333,9 @@ Note: These assignments are also fairly random and may not all even be
     Direction:
     BBB --> SD
 
-6. Device Data: SD sends the values of some of its paramters. 
+6. Device Data: SD sends the values of some of its paramters.
     - This can occur in response to a DeviceWrite/DeviceRead, or when the interval for a SubscriptionResponse occurs.
-    
+
   Payload format:
 
 
@@ -324,9 +347,39 @@ Note: These assignments are also fairly random and may not all even be
     Direction:
     BBB <-- SD
 
-7. Error Packet: Sent to indicate an error occured. 
+7. Heart Beat Request: BBB/SD requests SD/BBB heartbeat response for connectivity purposes.
+    - This message pathway is a two way street, both BBB and SD can send requests and send responses to the other
+    - Upon receiving a Heart Beat Request, a Heart Beat Response message should be immediately sent back
+    - Payload is currently unused, but can be used for future functionality in keeping track of individual heartbeat requests and responses (for latency purposes)
+
+    Payload format:
+
+        +---------------+
+        |       ID      |
+        |    (8 bits)   |
+        +---------------+
+
+    Direction:
+    BBB --> SD   OR   BBB <-- SD
+
+8. Heart Beat Response: Sent in response to a Heart Beat Request
+    - This message pathway is a two way street, both BBB and SD can receive requests and send responses to the other
+    - Should only be sent upon receiving a Heart Beat Request
+    - Payload is currently unused, but can be used for future functionality in keeping track of individual heartbeat requests and responses (for latency purposes)
+
+    Payload format:
+
+        +---------------+
+        |       ID      |
+        |    (8 bits)   |
+        +---------------+
+
+    Direction:
+    BBB --> SD   OR   BBB <-- SD
+
+9. Error Packet: Sent to indicate an error occured.
     - Currently only used for the BBB to log statistics.
-    
+
   Payload format:
 
         +----------------+
@@ -351,12 +404,12 @@ Setup
 
 Sensor Communication (Reading values)
 
-  1. After setup the BBB sends the approrpiate SubscriptionRequest 
+  1. After setup the BBB sends the approrpiate SubscriptionRequest
      Packet is sent to each device.
   2. The SD will then return values at regular intervals specified by
      the Subscription Request (delay field)
   3. Hibike also allows for the BBB to poll parameters using a DeviceRead Packet.
-  4. The SD will respond by returning a DeviceData Packet with 
+  4. The SD will respond by returning a DeviceData Packet with
      the values of the params specified.
    - Multiple DeviceData Packets may be sent due to packet size
 
@@ -374,3 +427,23 @@ Error handling
   1. Still kind of up in the air, but in general, only the BBB will
      have error handling behavior
   3. If a SD recieves an invalid packet, it will send an error packet.
+
+### Flashing
+
+Run the setup script in hibike. `./setup.sh` should do the trick. It will download a lot of stuff. You have effectively given up all your software freedoms at this point. Go cry a bit. Come back after asking Linus for forgiveness.
+
+You're almost done, keep it up. Edit `/usr/bin/ard-reset-arduino`. You should sudo this. Don't worry, this is the last time you'll be violating your system. Change `ser.setBaudrate(1200)` to `se.baudrate = 1200`. Now your poor machine is ready to flash Arduinos (tm)
+
+Flash by going to `piecentral/hibike`.
+
+The command to run is `./flash.sh SENSOR_NAME`, where `SENSOR_NAME` is one of
+
+- `BatteryBuzzer`
+- `ExampleDevice`
+- `LimitSwitch`
+- `LineFollower`
+- `Potentiometer`
+- `RFID`
+- `ServoControl`
+- `TeamFlag`
+- `YogiBear`

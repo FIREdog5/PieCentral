@@ -1,0 +1,11 @@
+[Unit]
+Description=update service
+After=local-fs.target
+
+[Service]
+Type=simple
+ExecStart=/home/ubuntu/bin/update.sh
+
+[Install]
+WantedBy=local-fs.target
+RequiredBy=runtime.service

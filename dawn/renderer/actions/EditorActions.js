@@ -13,6 +13,12 @@ export const openFileSucceeded = (data, filepath) => ({
   filepath,
 });
 
+export const saveFileSucceeded = (data, filepath) => ({
+  type: 'SAVE_FILE_SUCCEEDED',
+  code: data,
+  filepath,
+});
+
 export const openFile = () => ({
   type: 'OPEN_FILE',
 });
@@ -28,4 +34,8 @@ export const deleteFile = () => ({
 
 export const createNewFile = () => ({
   type: 'CREATE_NEW_FILE',
+});
+
+export const downloadCode = () => ({
+  type: 'DOWNLOAD_CODE',
 });

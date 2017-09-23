@@ -5,6 +5,13 @@ message DawnData {
         IDLE = 0;
         TELEOP = 1;
         AUTONOMOUS = 2;
+        ESTOP = 3;
+    }
+
+    enum TeamColor {
+        NONE = 0;
+        BLUE = 1;
+        GOLD = 2;
     }
 
     message Gamepad {
@@ -16,4 +23,5 @@ message DawnData {
     StudentCodeStatus student_code_status = 1;
     repeated Gamepad gamepads = 2;
     repeated string peripheral_names = 3;
+    TeamColor team_color = 4;
 }

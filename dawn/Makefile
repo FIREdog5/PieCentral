@@ -1,14 +1,30 @@
-dawn-install:
-	npm install
+.PHONY: watch start install artifacts-install lint test artifacts
 
-dawn-watch:
-	npm install && npm run-script watch
+watch: install
+	yarn run watch
 
-dawn-start:
-	npm start
+start:
+	yarn start
 
-dawn-lint:
-	npm run-script lint
+install:
+	yarn install --frozen-lockfile
 
-dawn-test:
-	npm test
+artifacts-install:
+	yarn add --no-lockfile electron-packager
+	sudo dpkg --add-architecture i386
+	sudo apt-get update
+	sudo apt-get install -y wine
+	sudo apt-get install -y p7zip-full
+
+lint:
+	yarn run lint
+
+test:
+	yarn test
+
+artifacts:
+	yarn run build
+	node release.js --platform=win32 --arch=ia32
+	node release.js --platform=darwin --arch=x64
+	node release.js --platform=linux --arch=x64
+	cp ../*.zip ../artifacts

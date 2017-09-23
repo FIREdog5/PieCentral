@@ -1,35 +1,39 @@
+/* eslint-disable camelcase */
 import React from 'react';
-import NameEditContainer from '../NameEditContainer';
+import PropTypes from 'prop-types';
+import _ from 'lodash';
+import numeral from 'numeral';
 
 /**
- * A generic peripheral, used when the peripheralType is unknown.
+ * Generic Peripheral for General Case
  */
-const GenericPeripheral = props => (
-  <div style={{ overflow: 'auto' }}>
-    <div style={{ overflow: 'auto', width: '100' }}>
-      <h4 style={{ float: 'left' }}>
-        <NameEditContainer name={props.name} id={props.id} />
-        <small>{props.peripheralType}</small>
-      </h4>
-      <h4 style={{ float: 'right' }}>
-        {props.value}
-      </h4>
-    </div>
+const GenericPeripheral = ({ id, device_name, device_type, param }) => (
+  <div style={{ overflow: 'auto', width: '100%' }}>
+    <h4 style={{ float: 'left' }}>
+      <div>{id}</div>
+      <small>{device_type}</small>
+    </h4>
+    {
+      _.map(param, obj => (
+        <div key={`${obj.param}-${device_name}-Overall`}>
+          <h4 style={{ float: 'right', height: '10px' }} key={`${obj.param}-${device_name}`} >
+            {`${obj.param}: ${numeral(obj.int_value || obj.float_value).format('+0.00')}`}
+          </h4>
+        </div>
+      ))
+    }
   </div>
 );
 
 GenericPeripheral.propTypes = {
-  name: React.PropTypes.string.isRequired,
-  id: React.PropTypes.string.isRequired,
-  peripheralType: React.PropTypes.string.isRequired,
-  value: React.PropTypes.oneOfType([
-    React.PropTypes.string,
-    React.PropTypes.number,
-  ]).isRequired,
+  device_name: PropTypes.string.isRequired,
+  device_type: PropTypes.string.isRequired,
+  id: PropTypes.string.isRequired,
+  param: PropTypes.array.isRequired,
 };
 
 GenericPeripheral.defaultProps = {
-  peripheralType: 'peripheralType was undefined',
+  device_type: 'Undefined Type',
 };
 
 export default GenericPeripheral;

@@ -1,12 +1,16 @@
-/**
- * Defines the debug menu.
- */
-
 import { fork } from 'child_process';
 import RendererBridge from '../RendererBridge';
+import LCMObject from '../networking/FieldControlLCM';
 
-// Reference to the child process for FakeRuntime.
-let child = null;
+let fakeRuntime = null;
+
+export function killFakeRuntime() {
+  if (fakeRuntime) {
+    fakeRuntime.kill();
+    fakeRuntime = null;
+    console.log('Fake runtime killed');
+  }
+}
 
 const DebugMenu = {
   label: 'Debug',
@@ -18,30 +22,44 @@ const DebugMenu = {
       },
     },
     {
-      label: 'Toggle Fake Runtime',
-      kill() {
-        if (child) {
-          child.kill();
-          child = null;
-        }
-        return 'Done';
-      },
+      label: 'Restart Runtime',
       click() {
-        if (child) {
-          child.kill();
-          child = null;
-        } else {
-          // Fork FakeRuntime as a child process
-          child = fork('./fake-runtime/FakeRuntime');
-        }
+        RendererBridge.reduxDispatch({
+          type: 'RESTART_RUNTIME',
+        });
+      },
+    },
+    {
+      label: 'Restart LCM',
+      click() {
+        LCMObject.LCMInternal.quit();
+        LCMObject.setup();
+      },
+    },
+    {
+      label: 'Toggle Console Autoscroll',
+      click() {
+        RendererBridge.reduxDispatch({
+          type: 'TOGGLE_SCROLL',
+        });
       },
     },
   ],
 };
 
-// In development mode, allow reloading to see effects of code changes.
 if (process.env.NODE_ENV === 'development') {
-  DebugMenu.submenu.unshift({
+  DebugMenu.submenu.push({
+    label: 'Toggle Fake Runtime',
+    click() {
+      if (fakeRuntime) {
+        killFakeRuntime();
+      } else {
+        fakeRuntime = fork('./fake-runtime/FakeRuntime');
+      }
+    },
+  });
+
+  DebugMenu.submenu.push({
     label: 'Reload',
     accelerator: 'CommandOrControl+R',
     click() {

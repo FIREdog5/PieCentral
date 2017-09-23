@@ -5,6 +5,7 @@
 const initialState = {
   showConsole: false,
   consoleData: [],
+  disableScroll: false,
 };
 
 const studentConsole = (state = initialState, action) => {
@@ -14,7 +15,7 @@ const studentConsole = (state = initialState, action) => {
         ...state,
         consoleData: [
           ...state.consoleData,
-          action.value,
+          action.consoleOutput,
         ],
       };
     case 'CLEAR_CONSOLE':
@@ -22,15 +23,15 @@ const studentConsole = (state = initialState, action) => {
         ...state,
         consoleData: [],
       };
-    case 'SHOW_CONSOLE':
+    case 'TOGGLE_CONSOLE':
       return {
         ...state,
-        showConsole: true,
+        showConsole: !state.showConsole,
       };
-    case 'HIDE_CONSOLE':
+    case 'TOGGLE_SCROLL':
       return {
         ...state,
-        showConsole: false,
+        disableScroll: !state.disableScroll,
       };
     default:
       return state;

@@ -1,11 +1,15 @@
 import React from 'react';
 import Joyride from 'react-joyride';
+import PropTypes from 'prop-types';
 import { remote, ipcRenderer } from 'electron';
 import { connect } from 'react-redux';
 import smalltalk from 'smalltalk';
 import Dashboard from './Dashboard';
+import DNav from './DNav';
 import joyrideSteps from './JoyrideSteps';
 import { removeAsyncAlert } from '../actions/AlertActions';
+import { updateFieldControl } from '../actions/FieldActions';
+import { logging, startLog } from '../utils/utils';
 
 const storage = remote.require('electron-json-storage');
 
@@ -14,12 +18,14 @@ class AppComponent extends React.Component {
     super(props);
     this.state = {
       steps: [],
+      tourRunning: false,
     };
     this.addSteps = this.addSteps.bind(this);
     this.addTooltip = this.addTooltip.bind(this);
     this.startTour = this.startTour.bind(this);
-    this.completeCallback = this.completeCallback.bind(this);
+    this.joyrideCallback = this.joyrideCallback.bind(this);
     this.updateAlert = this.updateAlert.bind(this);
+    startLog();
   }
 
   componentDidMount() {
@@ -27,13 +33,27 @@ class AppComponent extends React.Component {
     ipcRenderer.on('start-interactive-tour', () => {
       this.startTour();
     });
-    storage.has('firstTime').then((hasKey) => {
+    storage.has('firstTime', (hasErr, hasKey) => {
+      if (hasErr) {
+        logging.log(hasErr);
+        return;
+      }
+
       if (!hasKey) {
         this.startTour();
-        storage.set('firstTime', { first: true }, (err) => {
-          if (err) throw err;
+        storage.set('firstTime', { first: true }, (setErr) => {
+          if (setErr) logging.log(setErr);
         });
       }
+    });
+
+    storage.get('fieldControl', (err, data) => {
+      if (err) {
+        logging.log(err);
+        return;
+      }
+      this.props.onFCUpdate(data);
+      ipcRenderer.send('LCM_CONFIG_CHANGE', data);
     });
   }
 
@@ -48,30 +68,36 @@ class AppComponent extends React.Component {
     }
   }
 
+  shouldComponentUpdate(nextProps, nextState) {
+    return nextProps !== this.props || nextState !== this.state;
+  }
+
   addSteps(steps) {
-    const joyride = this.refs.joyride;
     if (!Array.isArray(steps)) {
       steps = [steps];
     }
-    if (!steps.length) {
-      return false;
+    if (steps.length === 0) {
+      return;
     }
     this.setState((currentState) => {
-      currentState.steps = currentState.steps.concat(joyride.parseSteps(steps));
+      currentState.steps = currentState.steps.concat(steps);
       return currentState;
     });
   }
 
   addTooltip(data) {
-    this.refs.joyride.addTooltip(data);
+    this.joyride.addTooltip(data);
   }
 
   startTour() {
-    this.refs.joyride.start(true);
+    this.setState({ tourRunning: true });
   }
 
-  completeCallback() {
-    this.refs.joyride.reset(false);
+  joyrideCallback(action) {
+    if (action.type === 'finished') {
+      this.setState({ tourRunning: false });
+      this.joyride.reset(false);
+    }
   }
 
   updateAlert(latestAlert) {
@@ -85,11 +111,20 @@ class AppComponent extends React.Component {
   render() {
     return (
       <div>
+        <DNav
+          startTour={this.startTour}
+          runtimeStatus={this.props.runtimeStatus}
+          connectionStatus={this.props.connectionStatus}
+          isRunningCode={this.props.isRunningCode}
+        />
         <Joyride
-          ref="joyride"
+          ref={(c) => { this.joyride = c; }}
           steps={this.state.steps}
           type="continuous"
-          completeCallback={this.completeCallback}
+          showSkipButton
+          autoStart
+          run={this.state.tourRunning}
+          callback={this.joyrideCallback}
           locale={{
             back: 'Previous',
             close: 'Close',
@@ -98,7 +133,7 @@ class AppComponent extends React.Component {
             skip: 'Skip Tour',
           }}
         />
-        <div style={{ height: '10px' }} />
+        <div style={{ height: '35px', marginBottom: '21px' }} />
         <Dashboard
           {...this.props}
           addSteps={this.addSteps}
@@ -113,18 +148,17 @@ class AppComponent extends React.Component {
 }
 
 AppComponent.propTypes = {
-  connectionStatus: React.PropTypes.bool,
-  runtimeStatus: React.PropTypes.bool,
-  batteryLevel: React.PropTypes.number,
-  isRunningCode: React.PropTypes.bool,
-  asyncAlerts: React.PropTypes.array,
-  onAlertDone: React.PropTypes.func,
+  connectionStatus: PropTypes.bool.isRequired,
+  runtimeStatus: PropTypes.bool.isRequired,
+  isRunningCode: PropTypes.bool.isRequired,
+  asyncAlerts: PropTypes.array.isRequired,
+  onAlertDone: PropTypes.func.isRequired,
+  onFCUpdate: PropTypes.func.isRequired,
 };
 
 const mapStateToProps = state => ({
   connectionStatus: state.info.connectionStatus,
   runtimeStatus: state.info.runtimeStatus,
-  batteryLevel: state.info.batteryLevel,
   isRunningCode: state.info.isRunningCode,
   asyncAlerts: state.asyncAlerts,
 });
@@ -132,6 +166,9 @@ const mapStateToProps = state => ({
 const mapDispatchToProps = dispatch => ({
   onAlertDone(id) {
     dispatch(removeAsyncAlert(id));
+  },
+  onFCUpdate: (ipAddress) => {
+    dispatch(updateFieldControl(ipAddress));
   },
 });
 

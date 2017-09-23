@@ -1,4 +1,5 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 import {
   Panel,
   ButtonGroup,
@@ -7,9 +8,10 @@ import {
   MenuItem,
 } from 'react-bootstrap';
 import AceEditor from 'react-ace';
-import _ from 'lodash';
+import { remote, ipcRenderer, clipboard } from 'electron';
 import storage from 'electron-json-storage';
-import { remote } from 'electron';
+import _ from 'lodash';
+
 
 // React-ace extensions and modes
 import 'brace/ext/language_tools';
@@ -27,21 +29,34 @@ import 'brace/theme/solarized_dark';
 import 'brace/theme/solarized_light';
 import 'brace/theme/terminal';
 
-import UpdateBox from './UpdateBox';
-import ConfigBox from './ConfigBox';
 import ConsoleOutput from './ConsoleOutput';
-import EditorButton from './EditorButton';
-import { pathToName } from '../utils/utils';
-
-const Client = require('ssh2').Client;
+import TooltipButton from './TooltipButton';
+import { pathToName, robotState, defaults, timings, logging, windowInfo } from '../utils/utils';
 
 const dialog = remote.dialog;
 const currentWindow = remote.getCurrentWindow();
 
 class Editor extends React.Component {
+  /*
+   * ASCII Enforcement
+   */
+  static onEditorPaste(pasteData) {
+    let correctedText = pasteData.text;
+    correctedText = correctedText.normalize('NFD');
+    correctedText = correctedText.replace(/[”“]/g, '"');
+    correctedText = correctedText.replace(/[‘’]/g, "'");
+    correctedText = Editor.correctText(correctedText);
+    // TODO: Create some notification that an attempt was made at correcting non-ASCII chars.
+    pasteData.text = correctedText; // eslint-disable-line no-param-reassign
+  }
+
+  // TODO: Take onEditorPaste items and move to utils?
+  static correctText(text) {
+    return text.replace(/[^\x00-\x7F]/g, ''); // eslint-disable-line no-control-regex
+  }
+
   constructor(props) {
     super(props);
-    this.consoleHeight = 250; // pixels
     this.themes = [
       'monokai',
       'github',
@@ -54,187 +69,221 @@ class Editor extends React.Component {
       'solarized_light',
       'terminal',
     ];
+    this.beforeUnload = this.beforeUnload.bind(this);
+    this.onWindowResize = this.onWindowResize.bind(this);
     this.toggleConsole = this.toggleConsole.bind(this);
     this.getEditorHeight = this.getEditorHeight.bind(this);
     this.changeTheme = this.changeTheme.bind(this);
     this.increaseFontsize = this.increaseFontsize.bind(this);
     this.decreaseFontsize = this.decreaseFontsize.bind(this);
-    this.toggleUpdateModal = this.toggleUpdateModal.bind(this);
-    this.toggleConfigModal = this.toggleConfigModal.bind(this);
     this.startRobot = this.startRobot.bind(this);
     this.stopRobot = this.stopRobot.bind(this);
     this.upload = this.upload.bind(this);
-    this.toggleUpdateModal = this.toggleUpdateModal.bind(this);
-    this.toggleConfigModal = this.toggleConfigModal.bind(this);
+    this.estop = this.estop.bind(this);
+    this.simulateCompetition = this.simulateCompetition.bind(this);
+    this.raiseConsole = this.raiseConsole.bind(this);
+    this.lowerConsole = this.lowerConsole.bind(this);
+    this.copyConsole = this.copyConsole.bind(this);
     this.state = {
-      editorHeight: this.getEditorHeight(),
-      showUpdateModal: false,
-      showConfigModal: false,
+      consoleHeight: windowInfo.CONSOLESTART,
+      editorHeight: 0,
+      mode: robotState.TELEOP,
+      modeDisplay: robotState.TELEOPSTR,
+      simulate: false,
     };
   }
 
+  /*
+   * Confirmation Dialog on Quit, Stored Editor Settings, Window Size-Editor Re-render
+   */
   componentDidMount() {
-    // If there are unsaved changes and the user tries to close Dawn,
-    // check if they want to save their changes first.
-    window.onbeforeunload = (e) => {
-      if (this.hasUnsavedChanges()) {
-        e.returnValue = false;
-        dialog.showMessageBox({
-          type: 'warning',
-          buttons: ['Save and exit', 'Quit without saving', 'Cancel exit'],
-          title: 'You have unsaved changes!',
-          message: 'You are trying to exit Dawn, but you have unsaved changes. ' +
-          'What do you want to do with your unsaved changes?',
-        }, (res) => {
-          // 'res' is an integer corresponding to index in button list above.
-          if (res === 0) {
-            this.props.onSaveFile();
-            window.onbeforeunload = null;
-            currentWindow.close();
-          } else if (res === 1) {
-            window.onbeforeunload = null;
-            currentWindow.close();
-          } else {
-            console.log('Exit canceled.');
-          }
-        });
-      }
-    };
-
-    this.refs.CodeEditor.editor.setOption('enableBasicAutocompletion', true);
-
+    this.CodeEditor.editor.setOption('enableBasicAutocompletion', true);
+    this.onWindowResize();
     storage.get('editorTheme', (err, data) => {
-      if (err) throw err;
-      if (!_.isEmpty(data)) this.props.onChangeTheme(data.theme);
+      if (err) {
+        logging.log(err);
+      } else if (!_.isEmpty(data)) {
+        this.props.onChangeTheme(data.theme);
+      }
     });
 
     storage.get('editorFontSize', (err, data) => {
-      if (err) throw err;
-      if (!_.isEmpty(data)) this.props.onChangeFontsize(data.editorFontSize);
+      if (err) {
+        logging.log(err);
+      } else if (!_.isEmpty(data)) {
+        this.props.onChangeFontsize(data.editorFontSize);
+      }
     });
 
-    // Trigger editor to re-render with window resize
-    window.addEventListener('resize', () => {
-      this.setState({ editorHeight: this.getEditorHeight() });
-    }, { passive: true });
+
+    window.addEventListener('beforeunload', this.beforeUnload);
+    window.addEventListener('resize', this.onWindowResize, { passive: true });
   }
 
-  onEditorPaste(pasteData) {
-    // Must correct non-ASCII characters, which would crash Runtime.
-    let correctedText = pasteData.text;
-    // Normalizing will allow us (in some cases) to preserve ASCII equivalents.
-    correctedText = correctedText.normalize('NFD');
-    // Special case to replace fancy quotes.
-    correctedText = correctedText.replace(/[”“]/g, '"');
-    correctedText = correctedText.replace(/[‘’]/g, "'");
-    correctedText = this.correctText(correctedText);
-    // TODO: Create some notification that an attempt was made at correcting non-ASCII chars.
-    pasteData.text = correctedText; // eslint-disable-line no-param-reassign
+  componentWillUnmount() {
+    window.removeEventListener('beforeunload', this.beforeUnload);
+    window.removeEventListener('resize', this.onWindowResize);
+  }
+
+  onWindowResize() {
+    // Trigger editor to re-render on window resizing.
+    this.setState({ editorHeight: this.getEditorHeight() });
   }
 
   getEditorHeight(windowHeight) {
-    return `${String(windowHeight - 160 - (this.props.showConsole * (this.consoleHeight + 40)))}px`;
+    const windowNonEditorHeight = windowInfo.NONEDITOR +
+      (this.props.showConsole * (this.state.consoleHeight + windowInfo.CONSOLEPAD));
+    return `${String(windowHeight - windowNonEditorHeight)}px`;
   }
 
-  correctText(text) {
-    // Removes non-ASCII characters from text.
-    return text.replace(/[^\x00-\x7F]/g, ''); // eslint-disable-line no-control-regex
+  beforeUnload(event) {
+    // If there are unsaved changes and the user tries to close Dawn,
+    // check if they want to save their changes first.
+    if (this.hasUnsavedChanges()) {
+      const clickedId = dialog.showMessageBox(currentWindow, {
+        type: 'warning',
+        buttons: ['Save...', 'Don\'t Save', 'Cancel'],
+        defaultId: 0,
+        cancelId: 2,
+        title: 'You have unsaved changes!',
+        message: 'Do you want to save the changes made to your program?',
+        detail: 'Your changes will be lost if you don\'t save them.',
+      });
+
+      // NOTE: For whatever reason, `event.preventDefault()` does not work within
+      // beforeunload events, so we use `event.returnValue = false` instead.
+      //
+      // `clickedId` is the index of the clicked button in the button list above.
+      if (clickedId === 0) {
+        // FIXME: Figure out a way to make Save and Close, well, close.
+        event.returnValue = false;
+        this.props.onSaveFile();
+      } else if (clickedId === 2) {
+        event.returnValue = false;
+      }
+    }
   }
 
   toggleConsole() {
-    if (this.props.showConsole) {
-      this.props.onHideConsole();
-    } else {
-      this.props.onShowConsole();
-    }
-    // must call resize method after changing height of ace editor
-    setTimeout(() => this.refs.CodeEditor.editor.resize(), 0.1);
+    this.props.toggleConsole();
+    // Resize since the console overlaps with the editor, but enough time for console changes
+    setTimeout(() => this.CodeEditor.editor.resize(), 0.1);
   }
 
   upload() {
     const filepath = this.props.filepath;
-    if (filepath == null) {
-      dialog.showMessageBox({
-        type: 'warning',
-        buttons: ['Close'],
-        title: 'No Files',
-        message: 'No file? No upload',
-      });
-      console.log('No file? No upload');
+    if (filepath === '') {
+      this.props.onAlertAdd(
+        'Not Working on a File',
+        'Please save first',
+      );
+      logging.log('Upload: Not Working on File');
       return;
     }
-    const correctedText = this.correctText(this.props.editorCode);
-    if (correctedText !== this.props.editorCode) {
+    if (this.hasUnsavedChanges()) {
+      this.props.onAlertAdd(
+        'Unsaved File',
+        'Please save first',
+      );
+      logging.log('Upload: Not Working on Saved File');
+      return;
+    }
+    if (Editor.correctText(this.props.editorCode) !== this.props.editorCode) {
       this.props.onAlertAdd(
         'Invalid characters detected',
         'Your code has non-ASCII characters, which won\'t work on the robot. ' +
         'Please remove them and try again.',
       );
+      logging.log('Upload: Non-ASCII Issue');
       return;
     }
-    const conn = new Client();
-    conn.on('error', (err) => {
-      dialog.showMessageBox({
-        type: 'warning',
-        buttons: ['Close'],
-        title: 'Connection Issue',
-        message: 'Could Not Connect to Robot',
-      });
-      throw err;
-    });
-    conn.on('ready', () => {
-      conn.sftp((err, sftp) => {
-        if (err) {
-          dialog.showMessageBox({
-            type: 'warning',
-            buttons: ['Close'],
-            title: 'Connection Issue',
-            message: 'Could Not Connect to Robot',
-          });
-          throw err;
-        }
-        console.log('SSH Connection');
-        sftp.fastPut(filepath, './studentcode/studentcode.py', (err2) => {
-          if (err2) {
-            dialog.showMessageBox({
-              type: 'warning',
-              buttons: ['Close'],
-              title: 'Upload Issue',
-              message: 'Code Upload Failed.',
-            });
-            throw err2;
-          }
-        });
-      });
-    }).connect({
-      debug: (inpt) => { console.log(inpt); },
-      host: this.props.ipAddress,
-      port: this.props.port,
-      username: this.props.username,
-      password: this.props.password,
-    });
-    setTimeout(() => { conn.end(); }, 2000);
+
+    ipcRenderer.send('NOTIFY_UPLOAD');
   }
 
   startRobot() {
-    this.props.onUpdateCodeStatus(1);
+    this.props.onUpdateCodeStatus(this.state.mode);
     this.props.onClearConsole();
   }
 
   stopRobot() {
-    this.props.onUpdateCodeStatus(0);
+    this.setState({ simulate: false,
+      modeDisplay: (this.state.mode === robotState.AUTONOMOUS) ?
+        robotState.AUTOSTR : robotState.TELEOPSTR });
+    this.props.onUpdateCodeStatus(robotState.IDLE);
   }
 
-  toggleUpdateModal() {
-    this.setState({ showUpdateModal: !this.state.showUpdateModal });
+  estop() {
+    this.setState({ simulate: false, modeDisplay: robotState.ESTOPSTR });
+    this.props.onUpdateCodeStatus(robotState.ESTOP);
   }
 
-  toggleConfigModal() {
-    this.setState({ showConfigModal: !this.state.showConfigModal });
-  }
+  simulateCompetition() {
+    this.setState({ simulate: true, modeDisplay: robotState.SIMSTR });
+    const simulation = new Promise((resolve, reject) => {
+      logging.log(`Beginning ${timings.AUTO}s ${robotState.AUTOSTR}`);
+      this.props.onUpdateCodeStatus(robotState.AUTONOMOUS);
+      const timestamp = Date.now();
+      const autoInt = setInterval(() => {
+        const diff = Math.trunc((Date.now() - timestamp) / timings.SEC);
+        if (diff > timings.AUTO) {
+          clearInterval(autoInt);
+          resolve();
+        } else if (!this.state.simulate) {
+          logging.log(`${robotState.AUTOSTR} Quit`);
+          clearInterval(autoInt);
+          reject();
+        } else {
+          this.setState({ modeDisplay: `${robotState.AUTOSTR}: ${timings.AUTO - diff}` });
+        }
+      }, timings.SEC);
+    });
 
-  openAPI() {
-    window.open('https://pie-api.readthedocs.org/');
+    simulation.then(() =>
+      new Promise((resolve, reject) => {
+        logging.log(`Beginning ${timings.IDLE}s Cooldown`);
+        this.props.onUpdateCodeStatus(robotState.IDLE);
+        const timestamp = Date.now();
+        const coolInt = setInterval(() => {
+          const diff = Math.trunc((Date.now() - timestamp) / timings.SEC);
+          if (diff > timings.IDLE) {
+            clearInterval(coolInt);
+            resolve();
+          } else if (!this.state.simulate) {
+            clearInterval(coolInt);
+            logging.log('Cooldown Quit');
+            reject();
+          } else {
+            this.setState({ modeDisplay: `Cooldown: ${timings.IDLE - diff}` });
+          }
+        }, timings.SEC);
+      }),
+    ).then(() => {
+      new Promise((resolve, reject) => {
+        logging.log(`Beginning ${timings.TELEOP}s ${robotState.TELEOPSTR}`);
+        this.props.onUpdateCodeStatus(robotState.TELEOP);
+        const timestamp = Date.now();
+        const teleInt = setInterval(() => {
+          const diff = Math.trunc((Date.now() - timestamp) / timings.SEC);
+          if (diff > timings.TELEOP) {
+            clearInterval(teleInt);
+            resolve();
+          } else if (!this.state.simulate) {
+            clearInterval(teleInt);
+            logging.log(`${robotState.TELEOPSTR} Quit`);
+            reject();
+          } else {
+            this.setState({ modeDisplay: `${robotState.TELEOPSTR}: ${timings.TELEOP - diff}` });
+          }
+        }, timings.SEC);
+      }).then(() => {
+        logging.log('Simulation Finished');
+        this.props.onUpdateCodeStatus(robotState.IDLE);
+      }, () => {
+        logging.log('Simulation Aborted');
+        this.props.onUpdateCodeStatus(robotState.IDLE);
+      });
+    });
   }
 
   hasUnsavedChanges() {
@@ -244,21 +293,37 @@ class Editor extends React.Component {
   changeTheme(theme) {
     this.props.onChangeTheme(theme);
     storage.set('editorTheme', { theme }, (err) => {
-      if (err) throw err;
+      if (err) logging.log(err);
     });
   }
 
   increaseFontsize() {
     this.props.onChangeFontsize(this.props.fontSize + 1);
     storage.set('editorFontSize', { editorFontSize: this.props.fontSize + 1 }, (err) => {
-      if (err) throw err;
+      if (err) logging.log(err);
     });
+  }
+
+  raiseConsole() {
+    this.setState({ consoleHeight: this.state.consoleHeight + windowInfo.UNIT }, () => {
+      this.CodeEditor.editor.resize();
+    });
+  }
+
+  lowerConsole() {
+    this.setState({ consoleHeight: this.state.consoleHeight - windowInfo.UNIT }, () => {
+      this.CodeEditor.editor.resize();
+    });
+  }
+
+  copyConsole() {
+    clipboard.writeText(this.props.consoleData.join(''));
   }
 
   decreaseFontsize() {
     this.props.onChangeFontsize(this.props.fontSize - 1);
     storage.set('editorFontSize', { editorFontSize: this.props.fontSize - 1 }, (err) => {
-      if (err) throw err;
+      if (err) logging.log(err);
     });
   }
 
@@ -273,144 +338,193 @@ class Editor extends React.Component {
           </span>
         }
       >
-        <UpdateBox
-          isRunningCode={this.props.isRunningCode}
-          connectionStatus={this.props.connectionStatus}
-          runtimeStatus={this.props.runtimeStatus}
-          shouldShow={this.state.showUpdateModal}
-          ipAddress={this.props.ipAddress}
-          port={this.props.port}
-          username={this.props.username}
-          password={this.props.password}
-          hide={this.toggleUpdateModal}
-        />
-        <ConfigBox
-          isRunningCode={this.props.isRunningCode}
-          connectionStatus={this.props.connectionStatus}
-          runtimeStatus={this.props.runtimeStatus}
-          shouldShow={this.state.showConfigModal}
-          ipAddress={this.props.ipAddress}
-          onIPChange={this.props.onIPChange}
-          hide={this.toggleConfigModal}
-        />
         <ButtonToolbar>
           <ButtonGroup id="file-operations-buttons">
-            <EditorButton
+            <TooltipButton
+              id="new"
               text="New"
               onClick={this.props.onCreateNewFile}
               glyph="file"
+              disabled={false}
             />
-            <EditorButton
+            <TooltipButton
+              id="open"
               text="Open"
               onClick={this.props.onOpenFile}
               glyph="folder-open"
+              disabled={false}
             />
-            <EditorButton
+            <TooltipButton
+              id="save"
               text="Save"
               onClick={this.props.onSaveFile}
               glyph="floppy-disk"
+              disabled={false}
             />
-            <EditorButton
+            <TooltipButton
+              id="save-as"
               text="Save As"
               onClick={_.partial(this.props.onSaveFile, true)}
               glyph="floppy-save"
+              disabled={false}
             />
-          </ButtonGroup>
-          <ButtonGroup id="code-execution-buttons">
-            <EditorButton
-              text="Run"
-              onClick={this.startRobot}
-              glyph="play"
-              disabled={this.props.isRunningCode || !this.props.runtimeStatus}
-            />
-            <EditorButton
-              text="Stop"
-              onClick={this.stopRobot}
-              glyph="stop"
-              disabled={!(this.props.isRunningCode && this.props.runtimeStatus)}
-            />
-            <EditorButton
+            <TooltipButton
+              id="upload"
               text="Upload"
               onClick={this.upload}
               glyph="upload"
-              // disabled={this.props.isRunningCode || !this.props.runtimeStatus}
+              disabled={false}
+            />
+            <TooltipButton
+              id="download"
+              text="Download from Robot"
+              onClick={this.props.onDownloadCode}
+              glyph="download"
+              disabled={!this.props.runtimeStatus || this.props.ipAddress === defaults.IPADDRESS}
+            />
+          </ButtonGroup>
+          <ButtonGroup id="code-execution-buttons">
+            <TooltipButton
+              id="run"
+              text="Run"
+              onClick={this.startRobot}
+              glyph="play"
+              disabled={this.props.isRunningCode
+              || !this.props.runtimeStatus
+              || this.props.fieldControlActivity}
+            />
+            <TooltipButton
+              id="stop"
+              text="Stop"
+              onClick={this.stopRobot}
+              glyph="stop"
+              disabled={!(this.props.isRunningCode || this.state.simulate)}
+            />
+            <DropdownButton
+              title={this.state.modeDisplay}
+              bsSize="small"
+              key="dropdown"
+              id="modeDropdown"
+              disabled={this.state.simulate
+              || this.props.fieldControlActivity
+              || !this.props.runtimeStatus}
+            >
+              <MenuItem
+                eventKey="1"
+                active={this.state.mode === robotState.TELEOP && !this.state.simulate}
+                onClick={() => {
+                  this.setState({ mode: robotState.TELEOP, modeDisplay: robotState.TELEOPSTR });
+                }}
+              >Tele-Operated</MenuItem>
+              <MenuItem
+                eventKey="2"
+                active={this.state.mode === robotState.AUTONOMOUS && !this.state.simulate}
+                onClick={() => {
+                  this.setState({ mode: robotState.AUTONOMOUS, modeDisplay: robotState.AUTOSTR });
+                }}
+              >Autonomous</MenuItem>
+              <MenuItem
+                eventKey="3"
+                active={this.state.simulate}
+                onClick={this.simulateCompetition}
+              >Simulate Competition</MenuItem>
+            </DropdownButton>
+            <TooltipButton
+              id="e-stop"
+              text="E-STOP"
+              onClick={this.estop}
+              glyph="fire"
+              disabled={false}
             />
           </ButtonGroup>
           <ButtonGroup id="console-buttons">
-            <EditorButton
+            <TooltipButton
+              id="toggle-console"
               text="Toggle Console"
               onClick={this.toggleConsole}
               glyph="console"
+              disabled={false}
             />
-            <EditorButton
+            <TooltipButton
+              id="clear-console"
               text="Clear Console"
-              onClick={this.onClearConsole}
+              onClick={this.props.onClearConsole}
               glyph="remove"
+              disabled={false}
+            />
+            <TooltipButton
+              id="raise-console"
+              text="Raise Console"
+              onClick={this.raiseConsole}
+              glyph="arrow-up"
+              disabled={this.state.consoleHeight > windowInfo.CONSOLEMAX}
+            />
+            <TooltipButton
+              id="lower-console"
+              text="Lower Console"
+              onClick={this.lowerConsole}
+              glyph="arrow-down"
+              disabled={this.state.consoleHeight < windowInfo.CONSOLEMIN}
+            />
+            <TooltipButton
+              id="copy-console"
+              text="Copy Console"
+              onClick={this.copyConsole}
+              glyph="copy"
+              disabled={false}
             />
           </ButtonGroup>
-          <ButtonGroup id="misc-buttons">
-            <EditorButton
-              text="API Documentation"
-              onClick={this.openAPI}
-              glyph="book"
-            />
-            <EditorButton
+          <ButtonGroup id="editor-settings-buttons">
+            <TooltipButton
+              id="increase-font-size"
               text="Increase font size"
               onClick={this.increaseFontsize}
               glyph="zoom-in"
               disabled={this.props.fontSize > 28}
             />
-            <EditorButton
+            <TooltipButton
+              id="decrease-font-size"
               text="Decrease font size"
               onClick={this.decreaseFontsize}
               glyph="zoom-out"
               disabled={this.props.fontSize < 7}
             />
-            <EditorButton
-              text="Updates"
-              onClick={this.toggleUpdateModal}
-              glyph="cloud-upload"
-            />
-            <EditorButton
-              text="Configuration"
-              onClick={this.toggleConfigModal}
-              glyph="cog"
-            />
+            <DropdownButton
+              title="Theme"
+              bsSize="small"
+              id="choose-theme"
+            >
+              {this.themes.map(theme => (
+                <MenuItem
+                  active={theme === this.props.editorTheme}
+                  onClick={_.partial(this.changeTheme, theme)}
+                  key={theme}
+                >
+                  {theme}
+                </MenuItem>
+              ))}
+            </DropdownButton>
           </ButtonGroup>
-          <DropdownButton
-            title="Theme"
-            bsSize="small"
-            id="choose-theme"
-          >
-            {_.map(this.themes, (theme, index) => (
-              <MenuItem
-                active={theme === this.props.editorTheme}
-                onClick={_.partial(this.changeTheme, theme)}
-                key={index}
-              >
-                {theme}
-              </MenuItem>
-            ))}
-          </DropdownButton>
         </ButtonToolbar>
         <AceEditor
           mode="python"
           theme={this.props.editorTheme}
           width="100%"
           fontSize={this.props.fontSize}
-          ref="CodeEditor"
+          ref={(input) => { this.CodeEditor = input; }}
           name="CodeEditor"
           height={this.getEditorHeight(window.innerHeight)}
           value={this.props.editorCode}
           onChange={this.props.onEditorUpdate}
-          onPaste={this.onEditorPaste}
+          onPaste={Editor.onEditorPaste}
           editorProps={{ $blockScrolling: Infinity }}
         />
         <ConsoleOutput
           toggleConsole={this.toggleConsole}
           show={this.props.showConsole}
-          height={this.consoleHeight}
+          height={this.state.consoleHeight}
           output={this.props.consoleData}
+          disableScroll={this.props.disableScroll}
         />
       </Panel>
     );
@@ -418,32 +532,29 @@ class Editor extends React.Component {
 }
 
 Editor.propTypes = {
-  editorCode: React.PropTypes.string,
-  editorTheme: React.PropTypes.string,
-  filepath: React.PropTypes.string,
-  fontSize: React.PropTypes.number,
-  latestSaveCode: React.PropTypes.string,
-  showConsole: React.PropTypes.bool,
-  consoleData: React.PropTypes.array,
-  onAlertAdd: React.PropTypes.func,
-  onEditorUpdate: React.PropTypes.func,
-  onSaveFile: React.PropTypes.func,
-  onOpenFile: React.PropTypes.func,
-  onCreateNewFile: React.PropTypes.func,
-  onChangeTheme: React.PropTypes.func,
-  onChangeFontsize: React.PropTypes.func,
-  onShowConsole: React.PropTypes.func,
-  onHideConsole: React.PropTypes.func,
-  onClearConsole: React.PropTypes.func,
-  onUpdateCodeStatus: React.PropTypes.func,
-  onIPChange: React.PropTypes.func,
-  isRunningCode: React.PropTypes.bool,
-  runtimeStatus: React.PropTypes.bool,
-  connectionStatus: React.PropTypes.bool,
-  ipAddress: React.PropTypes.string,
-  port: React.PropTypes.number,
-  username: React.PropTypes.string,
-  password: React.PropTypes.string,
+  editorCode: PropTypes.string.isRequired,
+  editorTheme: PropTypes.string.isRequired,
+  filepath: PropTypes.string.isRequired,
+  fontSize: PropTypes.number.isRequired,
+  latestSaveCode: PropTypes.string.isRequired,
+  showConsole: PropTypes.bool.isRequired,
+  consoleData: PropTypes.array.isRequired,
+  onAlertAdd: PropTypes.func.isRequired,
+  onEditorUpdate: PropTypes.func.isRequired,
+  onSaveFile: PropTypes.func.isRequired,
+  onOpenFile: PropTypes.func.isRequired,
+  onCreateNewFile: PropTypes.func.isRequired,
+  onChangeTheme: PropTypes.func.isRequired,
+  onChangeFontsize: PropTypes.func.isRequired,
+  toggleConsole: PropTypes.func.isRequired,
+  onClearConsole: PropTypes.func.isRequired,
+  onUpdateCodeStatus: PropTypes.func.isRequired,
+  isRunningCode: PropTypes.bool.isRequired,
+  runtimeStatus: PropTypes.bool.isRequired,
+  ipAddress: PropTypes.string.isRequired,
+  fieldControlActivity: PropTypes.bool.isRequired,
+  onDownloadCode: PropTypes.func.isRequired,
+  disableScroll: PropTypes.bool.isRequired,
 };
 
 export default Editor;

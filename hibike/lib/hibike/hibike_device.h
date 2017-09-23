@@ -3,6 +3,7 @@
 
 #include "hibike_message.h"
 #include "devices.h"
+#include "util.h"
 #include <stdint.h>
 // For size_t
 #include <string.h>
@@ -31,16 +32,15 @@ typedef enum {
 #define LED_PIN 13
 
 extern hibike_uid_t UID;
-void hibike_setup();
+void hibike_setup(uint32_t _disable_latency, uint32_t _heartbeatDelay);
+void hibike_setup(); //calls hibike_setup(args) with default values.
 void hibike_loop();
 void toggleLED();
 
-extern uint32_t device_update(uint8_t param, uint32_t value); 
-
-extern uint32_t device_status(uint8_t param); 
-
-extern uint8_t data_update(uint8_t* data_update_buf, size_t buf_len);
-
+// these are implimented in the device's .cpp files.
+extern uint32_t device_write(uint8_t param, uint8_t* data, size_t len);
+extern uint8_t device_read(uint8_t param, uint8_t* data, size_t len);
+extern void device_disable();
 
 
 #endif  // INC_HIBIKE_DEVICE

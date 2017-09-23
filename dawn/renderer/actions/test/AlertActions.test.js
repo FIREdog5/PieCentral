@@ -5,7 +5,7 @@ import { addAsyncAlert, removeAsyncAlert } from '../AlertActions';
 
 describe('alerts action creator', () => {
   // Needs to be using the same seed as the action creator.
-  const rng = new seedrandom('alertseed');
+  const rng = seedrandom('alertseed');
 
   it('should create an action to add alert', () => {
     const expectedAction = {
@@ -15,14 +15,14 @@ describe('alerts action creator', () => {
       message: 'example message',
     };
     expect(addAsyncAlert(
-      'example alert', 'example message'
+      'example alert', 'example message',
     )).to.deep.equal(expectedAction);
   });
 
   it('should create an action remove an alert', () => {
     const expectedAction = {
       type: 'REMOVE_ASYNC_ALERT',
-      id: 0
+      id: 0,
     };
     expect(removeAsyncAlert(0)).to.deep.equal(expectedAction);
   });

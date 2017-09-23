@@ -1,46 +1,42 @@
+/* eslint-disable camelcase */
 import React from 'react';
-import NameEditContainer from '../NameEditContainer';
+import PropTypes from 'prop-types';
+import _ from 'lodash';
 import { PeripheralTypes } from '../../constants/Constants';
 
 /**
- * A component representing a boolean sensor,
- * for example a LimitSwitch.
+ * Boolean Sensor Component
  */
-class BooleanSensor extends React.Component {
-  /**
-   * Formats data for display based on peripheralType.
-   */
-  static formatBoolean(peripheralType, sensorValue) {
-    if (peripheralType === PeripheralTypes.LimitSwitch) {
-      return (sensorValue) ? 'Open' : 'Closed';
-    }
-    return sensorValue;
+const formatBoolean = (peripheralType, sensorValue) => {
+  if (peripheralType === PeripheralTypes.LimitSwitch) {
+    return (sensorValue) ? 'Closed' : 'Open';
   }
+  return sensorValue; // TODO: Verify if int_value or bool_value
+};
 
-  render() {
-    return (
-      <div style={{ overflow: 'auto' }}>
-        <div style={{ overflow: 'auto', width: '100%' }}>
-          <h4 style={{ float: 'left' }}>
-            <NameEditContainer name={this.props.name} id={this.props.id} />
-            <small> {this.props.peripheralType} </small>
-          </h4>
-          <h4
-            style={{ float: 'right' }}
-          >
-            {BooleanSensor.formatBoolean(this.props.peripheralType, this.props.value)}
+const BooleanSensor = ({ id, device_name, device_type, param }) => (
+  <div style={{ overflow: 'auto', width: '100%' }}>
+    <h4 style={{ float: 'left' }}>
+      <div>{id}</div>
+      <small> {device_type} </small>
+    </h4>
+    {
+      _.map(param, obj => (
+        <div key={`${obj.param}-${device_name}-Overall`}>
+          <h4 style={{ float: 'right', height: '10px' }} key={`${obj.param}-${device_name}`}>
+            {`${obj.param}: ${formatBoolean(device_type, obj.int_value)}`}
           </h4>
         </div>
-      </div>
-    );
-  }
-}
+      ))
+    }
+  </div>
+);
 
 BooleanSensor.propTypes = {
-  name: React.PropTypes.string.isRequired,
-  peripheralType: React.PropTypes.string.isRequired,
-  id: React.PropTypes.string.isRequired,
-  value: React.PropTypes.number.isRequired,
+  device_name: PropTypes.string.isRequired,
+  device_type: PropTypes.string.isRequired,
+  id: PropTypes.string.isRequired,
+  param: PropTypes.array.isRequired,
 };
 
 export default BooleanSensor;

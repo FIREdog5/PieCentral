@@ -1,100 +1,130 @@
-/**
- * Simulates the robot runtime for development and testing purposes.
- *
- * NOTE: FakeRuntime is NOT transpiled or bundled by webpack like most of the other JS code
- * It will be run "as is" as a child-process of the rest of the application.
- * Some experimental features that are used elsewhere in Dawn may not be available here.
+/*
+ * Fake Runtime is not handled by webpack like most of the other JS code but instead
+ * will be run "as is" as a child-process of the rest of the application.
+ * See DebugMenu.js for handling FakeRuntime within Dawn
  */
 
 const dgram = require('dgram');
-const ProtoBuf = require('protobufjs');
+const net = require('net');
+const protobuf = require('protobufjs');
 
-const dawnBuilder = ProtoBuf.loadProtoFile('../ansible-protos/ansible.proto');
-const DawnData = dawnBuilder.build('DawnData');
-const runtimeBuilder = ProtoBuf.loadProtoFile('../ansible-protos/runtime.proto');
-const RuntimeData = runtimeBuilder.build('RuntimeData');
+const DawnData = (new protobuf.Root()).loadSync('../ansible-protos/ansible.proto', { keepCase: true }).lookupType('DawnData');
+const RuntimeData = (new protobuf.Root()).loadSync('../ansible-protos/runtime.proto', { keepCase: true }).lookupType('RuntimeData');
+const Notification = (new protobuf.Root()).loadSync('../ansible-protos/notification.proto', { keepCase: true }).lookupType('Notification');
+const sendPort = 1235;
+const listenPort = 1236;
+const sendSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+const listenSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+const tcpSocket = new net.Socket();
+tcpSocket.connect({ host: '127.0.0.1', port: 1234 }, () => {
+  console.log('Fake Runtime TCP Up');
+});
+tcpSocket.on('close', () => {
+  console.log('Fake Runtime TCP Down');
+});
 
-const clientPort = 1235; // send port
-const serverPort = 1236; // receive port
-const hostname = 'localhost';
-const client = dgram.createSocket('udp4');// sender
-const server = dgram.createSocket('udp4'); // receiver
-const SENDRATE = 1000;
-const stateEnum = {
-  RUNNING: 1,
-  IDLE: 0,
-};
-let state = stateEnum.IDLE;
+const interval = 1000; // in ms
 
-/**
- * Handler to receive messages from Dawn.
- * We don't do anything besides decode it and print it out.
- */
-server.on('message', (msg) => {
-  // Decode and get the raw object.
-  const data = DawnData.decode(msg).toRaw();
-  console.log(data);
-  if (data.student_code_status !== 'IDLE') {
-    state = stateEnum.RUNNING;
-  } else {
-    state = stateEnum.IDLE;
+let state = RuntimeData.State.STUDENT_STOPPED;
+
+listenSocket.on('message', (msg) => {
+  const data = DawnData.decode(msg);
+  switch (data.student_code_status) {
+    case DawnData.StudentCodeStatus.TELEOP:
+      if (state !== RuntimeData.State.TELEOP) {
+        console.log('Fake Runtime in Teleop');
+        state = RuntimeData.State.TELEOP;
+      }
+      break;
+    case DawnData.StudentCodeStatus.ESTOP:
+      if (state !== RuntimeData.State.ESTOP) {
+        console.log('Fake Runtime Estopped');
+        state = RuntimeData.State.ESTOP;
+      }
+      break;
+    case DawnData.StudentCodeStatus.AUTONOMOUS:
+      if (state !== RuntimeData.State.AUTO) {
+        console.log('Fake Runtime in Autonomous');
+        state = RuntimeData.State.AUTO;
+      }
+      break;
+    default:
+      if (state !== RuntimeData.State.STUDENT_STOPPED) {
+        console.log('Fake Runtime in IDLE');
+      }
+      state = RuntimeData.State.STUDENT_STOPPED;
   }
 });
 
-server.bind(serverPort, hostname);
+listenSocket.bind(listenPort);
 
-/**
- * Returns a random number between min and max.
- */
 const randomFloat = (min, max) => (((max - min) * Math.random()) + min);
 
-/**
- * Generate fake data to send to Dawn
- */
-const generateFakeData = () => [
+const generateFakeData = () => (
   {
     robot_state: state,
     sensor_data: [{
       device_type: 'MOTOR_SCALAR',
       device_name: 'MS1',
-      value: randomFloat(-100, 100),
-      uid: 100,
-    },
-    {
+      param_value: [{
+        param: 'Val',
+        float_value: randomFloat(-100, 100),
+      }],
+      uid: '100',
+    }, {
+      device_type: 'MOTOR_SCALAR',
+      device_name: 'MS2',
+      param_value: [{
+        param: 'Val',
+        float_value: randomFloat(-100, 100),
+      }],
+      uid: '101',
+    }, {
       device_type: 'LimitSwitch',
       device_name: 'LS1',
-      value: Math.round(randomFloat(0, 1)),
-      uid: 101,
-    },
-    {
+      param_value: [{
+        param: 'Val',
+        int_value: Math.round(randomFloat(0, 1)),
+      }],
+      uid: '102',
+    }, {
       device_type: 'SENSOR_SCALAR',
       device_name: 'SS1',
-      value: randomFloat(-100, 100),
-      uid: 102,
-    },
-    {
+      param_value: [{
+        param: 'Val',
+        float_value: randomFloat(-100, 100),
+      }],
+      uid: '103',
+    }, {
+      device_type: 'SENSOR_SCALAR',
+      device_name: 'SS2',
+      param_value: [{
+        param: 'Val',
+        float_value: randomFloat(-100, 100),
+      }],
+      uid: '104',
+    }, {
       device_type: 'ServoControl',
       device_name: 'SC1',
-      value: Math.round(randomFloat(0, 180)),
-      uid: 103,
-    },
-    {
-      device_type: 'ColorSensor',
-      device_name: 'CS1',
-      value: Math.round(randomFloat(0, 255)),
-      uid: 104,
-    },
-    ],
-  },
-];
+      param_value: [{
+        param: 'Val',
+        int_value: Math.round(randomFloat(0, 180)),
+      }],
+      uid: '105',
+    }],
+  });
 
-/**
- * Send the encoded randomly generated data to Dawn
- */
+const generateRandomConsole = () => ({
+  header: Notification.Type.CONSOLE_LOGGING,
+  console_output: `${randomFloat(-100, 100)}\n`,
+});
+
+
 setInterval(() => {
-  const fakeData = generateFakeData();
-  for (const item of fakeData) {
-    const udpData = new RuntimeData(item);
-    client.send(Buffer.from(udpData.toArrayBuffer()), clientPort, hostname);
+  const udpData = RuntimeData.create(generateFakeData());
+  sendSocket.send(RuntimeData.encode(udpData).finish(), sendPort, 'localhost');
+  if (state !== RuntimeData.State.ESTOP && state !== RuntimeData.State.STUDENT_STOPPED) {
+    const tcpData = Notification.create(generateRandomConsole());
+    tcpSocket.write(Notification.encode(tcpData).finish());
   }
-}, SENDRATE);
+}, interval);

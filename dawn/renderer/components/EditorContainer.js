@@ -5,14 +5,14 @@ import {
   saveFile,
   openFile,
   createNewFile,
+  downloadCode,
 } from '../actions/EditorActions';
 import {
   changeTheme,
   changeFontsize,
 } from '../actions/SettingsActions';
 import {
-  showConsole,
-  hideConsole,
+  toggleConsole,
   clearConsole,
 } from '../actions/ConsoleActions';
 import { addAsyncAlert } from '../actions/AlertActions';
@@ -28,9 +28,9 @@ const mapStateToProps = state => ({
   consoleData: state.studentConsole.consoleData,
   ipAddress: state.info.ipAddress,
   connectionStatus: state.info.connectionStatus,
-  port: state.info.port,
-  username: state.info.username,
-  password: state.info.password,
+  notificationHold: state.info.notificationHold,
+  fieldControlActivity: state.info.fieldControlActivity,
+  disableScroll: state.studentConsole.disableScroll,
 });
 
 const mapDispatchToProps = dispatch => ({
@@ -55,11 +55,8 @@ const mapDispatchToProps = dispatch => ({
   onChangeFontsize: (newFontsize) => {
     dispatch(changeFontsize(newFontsize));
   },
-  onShowConsole: () => {
-    dispatch(showConsole());
-  },
-  onHideConsole: () => {
-    dispatch(hideConsole());
+  toggleConsole: () => {
+    dispatch(toggleConsole());
   },
   onClearConsole: () => {
     dispatch(clearConsole());
@@ -69,6 +66,9 @@ const mapDispatchToProps = dispatch => ({
   },
   onIPChange: (ipAddress) => {
     dispatch(ipChange(ipAddress));
+  },
+  onDownloadCode: () => {
+    dispatch(downloadCode());
   },
 });
 
