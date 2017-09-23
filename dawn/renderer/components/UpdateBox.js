@@ -1,4 +1,5 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 import {
   Modal,
   Button,
@@ -97,22 +98,30 @@ class UpdateBox extends React.Component {
   }
 
   render() {
-    return (
-      <Modal show={this.props.shouldShow} onHide={this.props.hide}>
-        <Modal.Header closeButton>
-          <Modal.Title>Upload Update</Modal.Title>
-        </Modal.Header>
-        {this.state.isUploading ? <Modal.Body>
+    let modalBody = null;
+    if (this.state.isUploading) {
+      modalBody = (
+        <Modal.Body>
           <h4>PLEASE DO NOT TURN OFF ROBOT</h4>
           <br />
-        </Modal.Body> :
+        </Modal.Body>
+      );
+    } else {
+      modalBody = (
         <Modal.Body>
           <h4>Update Package (tar.gz file)</h4>
           <h5>{this.state.updateFilepath ? this.state.updateFilepath : ''}</h5>
           <Button type="button" onClick={this.chooseUpdate}>Choose File</Button>
           <br />
         </Modal.Body>
-        }
+      );
+    }
+    return (
+      <Modal show={this.props.shouldShow} onHide={this.props.hide}>
+        <Modal.Header closeButton>
+          <Modal.Title>Upload Update</Modal.Title>
+        </Modal.Header>
+        {modalBody}
         <Modal.Footer>
           <Button
             type="button"
@@ -129,13 +138,13 @@ class UpdateBox extends React.Component {
 }
 
 UpdateBox.propTypes = {
-  shouldShow: React.PropTypes.bool.isRequired,
-  hide: React.PropTypes.func.isRequired,
-  connectionStatus: React.PropTypes.bool.isRequired,
-  runtimeStatus: React.PropTypes.bool.isRequired,
-  isRunningCode: React.PropTypes.bool.isRequired,
-  ipAddress: React.PropTypes.string.isRequired,
-  onAlertAdd: React.PropTypes.func.isRequired,
+  shouldShow: PropTypes.bool.isRequired,
+  hide: PropTypes.func.isRequired,
+  connectionStatus: PropTypes.bool.isRequired,
+  runtimeStatus: PropTypes.bool.isRequired,
+  isRunningCode: PropTypes.bool.isRequired,
+  ipAddress: PropTypes.string.isRequired,
+  onAlertAdd: PropTypes.func.isRequired,
 };
 
 const mapDispatchToProps = dispatch => ({

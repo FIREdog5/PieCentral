@@ -1,5 +1,7 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 import _ from 'lodash';
+import { connect } from 'react-redux';
 import { Panel, Accordion, ListGroup } from 'react-bootstrap';
 import { PeripheralTypes } from '../constants/Constants';
 import Peripheral from './Peripheral';
@@ -12,7 +14,6 @@ cleanerNames[PeripheralTypes.LimitSwitch] = 'Limit Switches';
 cleanerNames[PeripheralTypes.LineFollower] = 'Line Followers';
 cleanerNames[PeripheralTypes.Potentiometer] = 'Potentiometers';
 cleanerNames[PeripheralTypes.Encoder] = 'Encoders';
-// cleanerNames[PeripheralTypes.ColorSensor] = 'Color Sensors';
 cleanerNames[PeripheralTypes.MetalDetector] = 'Metal Detectors';
 cleanerNames[PeripheralTypes.ServoControl] = 'Servo Controllers';
 cleanerNames[PeripheralTypes.RFID] = 'RFID';
@@ -51,7 +52,7 @@ const handleAccordion = (array) => {
 };
 
 
-const PeripheralList = (props) => {
+const PeripheralListComponent = (props) => {
   let errorMsg = null;
   if (!props.connectionStatus) {
     errorMsg = 'You are currently disconnected from the robot.';
@@ -59,6 +60,15 @@ const PeripheralList = (props) => {
     errorMsg = 'There appears to be some sort of Runtime error. ' +
       'No data is being received.';
   }
+
+  let panelBody = null;
+  if (errorMsg) {
+    panelBody = <p className="panelText">{errorMsg}</p>;
+  } else {
+    panelBody = handleAccordion(
+      _.sortBy(_.toArray(props.peripherals.peripheralList), ['device_type', 'device_name']));
+  }
+
   return (
     <Panel
       id="peripherals-panel"
@@ -66,20 +76,22 @@ const PeripheralList = (props) => {
       bsStyle="primary"
     >
       <ListGroup fill style={{ marginBottom: '5px' }}>
-        {
-          !errorMsg ? handleAccordion(
-            _.sortBy(_.toArray(props.peripherals.peripheralList), ['device_type', 'device_name']))
-          : <p className="panelText">{errorMsg}</p>
-        }
+        {panelBody}
       </ListGroup>
     </Panel>
   );
 };
 
-PeripheralList.propTypes = {
-  connectionStatus: React.PropTypes.bool,
-  runtimeStatus: React.PropTypes.bool,
-  peripherals: React.PropTypes.object,
+PeripheralListComponent.propTypes = {
+  connectionStatus: PropTypes.bool.isRequired,
+  runtimeStatus: PropTypes.bool.isRequired,
+  peripherals: PropTypes.object.isRequired,
 };
+
+const mapStateToProps = state => ({
+  peripherals: state.peripherals,
+});
+
+const PeripheralList = connect(mapStateToProps)(PeripheralListComponent);
 
 export default PeripheralList;

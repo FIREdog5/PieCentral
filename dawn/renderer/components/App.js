@@ -1,5 +1,6 @@
 import React from 'react';
 import Joyride from 'react-joyride';
+import PropTypes from 'prop-types';
 import { remote, ipcRenderer } from 'electron';
 import { connect } from 'react-redux';
 import smalltalk from 'smalltalk';
@@ -7,7 +8,7 @@ import Dashboard from './Dashboard';
 import DNav from './DNav';
 import joyrideSteps from './JoyrideSteps';
 import { removeAsyncAlert } from '../actions/AlertActions';
-import { ipChange } from '../actions/InfoActions';
+import { updateFieldControl } from '../actions/FieldActions';
 import { logging, startLog } from '../utils/utils';
 
 const storage = remote.require('electron-json-storage');
@@ -44,6 +45,15 @@ class AppComponent extends React.Component {
           if (setErr) logging.log(setErr);
         });
       }
+    });
+
+    storage.get('fieldControl', (err, data) => {
+      if (err) {
+        logging.log(err);
+        return;
+      }
+      this.props.onFCUpdate(data);
+      ipcRenderer.send('LCM_CONFIG_CHANGE', data);
     });
   }
 
@@ -104,16 +114,11 @@ class AppComponent extends React.Component {
         <DNav
           startTour={this.startTour}
           runtimeStatus={this.props.runtimeStatus}
-          connection={this.props.connectionStatus}
-          battery={this.props.batteryLevel}
-          batterySafety={this.props.batterySafety}
+          connectionStatus={this.props.connectionStatus}
           isRunningCode={this.props.isRunningCode}
-          ipAddress={this.props.ipAddress}
-          onIPChange={this.props.onIPChange}
-          runtimeVersion={this.props.runtimeVersion}
         />
         <Joyride
-          ref={c => (this.joyride = c)}
+          ref={(c) => { this.joyride = c; }}
           steps={this.state.steps}
           type="continuous"
           showSkipButton
@@ -143,35 +148,27 @@ class AppComponent extends React.Component {
 }
 
 AppComponent.propTypes = {
-  connectionStatus: React.PropTypes.bool,
-  runtimeStatus: React.PropTypes.bool,
-  batteryLevel: React.PropTypes.number,
-  batterySafety: React.PropTypes.bool,
-  isRunningCode: React.PropTypes.bool,
-  asyncAlerts: React.PropTypes.array,
-  onAlertDone: React.PropTypes.func,
-  ipAddress: React.PropTypes.string,
-  onIPChange: React.PropTypes.func,
-  runtimeVersion: React.PropTypes.string,
+  connectionStatus: PropTypes.bool.isRequired,
+  runtimeStatus: PropTypes.bool.isRequired,
+  isRunningCode: PropTypes.bool.isRequired,
+  asyncAlerts: PropTypes.array.isRequired,
+  onAlertDone: PropTypes.func.isRequired,
+  onFCUpdate: PropTypes.func.isRequired,
 };
 
 const mapStateToProps = state => ({
   connectionStatus: state.info.connectionStatus,
   runtimeStatus: state.info.runtimeStatus,
-  batteryLevel: state.peripherals.batteryLevel,
-  batterySafety: state.peripherals.batterySafety,
   isRunningCode: state.info.isRunningCode,
   asyncAlerts: state.asyncAlerts,
-  ipAddress: state.info.ipAddress,
-  runtimeVersion: state.peripherals.runtimeVersion,
 });
 
 const mapDispatchToProps = dispatch => ({
   onAlertDone(id) {
     dispatch(removeAsyncAlert(id));
   },
-  onIPChange: (ipAddress) => {
-    dispatch(ipChange(ipAddress));
+  onFCUpdate: (ipAddress) => {
+    dispatch(updateFieldControl(ipAddress));
   },
 });
 

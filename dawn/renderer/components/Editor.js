@@ -1,4 +1,5 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 import {
   Panel,
   ButtonGroup,
@@ -171,7 +172,7 @@ class Editor extends React.Component {
 
   upload() {
     const filepath = this.props.filepath;
-    if (filepath === null) {
+    if (filepath === '') {
       this.props.onAlertAdd(
         'Not Working on a File',
         'Please save first',
@@ -344,30 +345,35 @@ class Editor extends React.Component {
               text="New"
               onClick={this.props.onCreateNewFile}
               glyph="file"
+              disabled={false}
             />
             <TooltipButton
               id="open"
               text="Open"
               onClick={this.props.onOpenFile}
               glyph="folder-open"
+              disabled={false}
             />
             <TooltipButton
               id="save"
               text="Save"
               onClick={this.props.onSaveFile}
               glyph="floppy-disk"
+              disabled={false}
             />
             <TooltipButton
               id="save-as"
               text="Save As"
               onClick={_.partial(this.props.onSaveFile, true)}
               glyph="floppy-save"
+              disabled={false}
             />
             <TooltipButton
               id="upload"
               text="Upload"
               onClick={this.upload}
               glyph="upload"
+              disabled={false}
             />
             <TooltipButton
               id="download"
@@ -383,7 +389,9 @@ class Editor extends React.Component {
               text="Run"
               onClick={this.startRobot}
               glyph="play"
-              disabled={this.props.isRunningCode || !this.props.runtimeStatus}
+              disabled={this.props.isRunningCode
+              || !this.props.runtimeStatus
+              || this.props.fieldControlActivity}
             />
             <TooltipButton
               id="stop"
@@ -397,7 +405,9 @@ class Editor extends React.Component {
               bsSize="small"
               key="dropdown"
               id="modeDropdown"
-              disabled={this.state.simulate || !this.props.runtimeStatus}
+              disabled={this.state.simulate
+              || this.props.fieldControlActivity
+              || !this.props.runtimeStatus}
             >
               <MenuItem
                 eventKey="1"
@@ -424,6 +434,7 @@ class Editor extends React.Component {
               text="E-STOP"
               onClick={this.estop}
               glyph="fire"
+              disabled={false}
             />
           </ButtonGroup>
           <ButtonGroup id="console-buttons">
@@ -432,12 +443,14 @@ class Editor extends React.Component {
               text="Toggle Console"
               onClick={this.toggleConsole}
               glyph="console"
+              disabled={false}
             />
             <TooltipButton
               id="clear-console"
               text="Clear Console"
               onClick={this.props.onClearConsole}
               glyph="remove"
+              disabled={false}
             />
             <TooltipButton
               id="raise-console"
@@ -458,6 +471,7 @@ class Editor extends React.Component {
               text="Copy Console"
               onClick={this.copyConsole}
               glyph="copy"
+              disabled={false}
             />
           </ButtonGroup>
           <ButtonGroup id="editor-settings-buttons">
@@ -518,28 +532,29 @@ class Editor extends React.Component {
 }
 
 Editor.propTypes = {
-  editorCode: React.PropTypes.string,
-  editorTheme: React.PropTypes.string,
-  filepath: React.PropTypes.string,
-  fontSize: React.PropTypes.number,
-  latestSaveCode: React.PropTypes.string,
-  showConsole: React.PropTypes.bool,
-  consoleData: React.PropTypes.array,
-  onAlertAdd: React.PropTypes.func,
-  onEditorUpdate: React.PropTypes.func,
-  onSaveFile: React.PropTypes.func,
-  onOpenFile: React.PropTypes.func,
-  onCreateNewFile: React.PropTypes.func,
-  onChangeTheme: React.PropTypes.func,
-  onChangeFontsize: React.PropTypes.func,
-  toggleConsole: React.PropTypes.func,
-  onClearConsole: React.PropTypes.func,
-  onUpdateCodeStatus: React.PropTypes.func,
-  isRunningCode: React.PropTypes.bool,
-  runtimeStatus: React.PropTypes.bool,
-  ipAddress: React.PropTypes.string,
-  onDownloadCode: React.PropTypes.func,
-  disableScroll: React.PropTypes.bool,
+  editorCode: PropTypes.string.isRequired,
+  editorTheme: PropTypes.string.isRequired,
+  filepath: PropTypes.string.isRequired,
+  fontSize: PropTypes.number.isRequired,
+  latestSaveCode: PropTypes.string.isRequired,
+  showConsole: PropTypes.bool.isRequired,
+  consoleData: PropTypes.array.isRequired,
+  onAlertAdd: PropTypes.func.isRequired,
+  onEditorUpdate: PropTypes.func.isRequired,
+  onSaveFile: PropTypes.func.isRequired,
+  onOpenFile: PropTypes.func.isRequired,
+  onCreateNewFile: PropTypes.func.isRequired,
+  onChangeTheme: PropTypes.func.isRequired,
+  onChangeFontsize: PropTypes.func.isRequired,
+  toggleConsole: PropTypes.func.isRequired,
+  onClearConsole: PropTypes.func.isRequired,
+  onUpdateCodeStatus: PropTypes.func.isRequired,
+  isRunningCode: PropTypes.bool.isRequired,
+  runtimeStatus: PropTypes.bool.isRequired,
+  ipAddress: PropTypes.string.isRequired,
+  fieldControlActivity: PropTypes.bool.isRequired,
+  onDownloadCode: PropTypes.func.isRequired,
+  disableScroll: PropTypes.bool.isRequired,
 };
 
 export default Editor;
