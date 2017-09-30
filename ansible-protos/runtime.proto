@@ -25,12 +25,6 @@ message RuntimeData {
         uint32 int_device_type = 5;
         repeated ParamValue param_value = 6;
     }
-
-    message Timestamp {
-        repeated float timestamps = 1;
-    }
-
     State robot_state = 1;
     repeated SensorData sensor_data = 2;
-    Timestamp timestamp = 3;
 }
