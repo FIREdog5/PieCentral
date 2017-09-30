@@ -24,4 +24,5 @@ message DawnData {
     repeated Gamepad gamepads = 2;
     repeated string peripheral_names = 3;
     TeamColor team_color = 4;
+    float dawn_timestamp = 5;
 }
