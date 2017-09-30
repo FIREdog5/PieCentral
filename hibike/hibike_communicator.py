@@ -45,7 +45,7 @@ class HibikeCommunicator:
       """
       while True:
          output = self.stateQueue.get()
-         print("Output: ", output)
+         #print("Output: ", output)
 
          #Now, get or remove the uid if it is appropriate to do so
          command = output[0]
@@ -61,24 +61,25 @@ class HibikeCommunicator:
    
          #If it is a device value, cache it in the dictionary.
          if command == "device_values":
-             try:
-                uid = output[1][0].keys()[0]
-             except TypeError:
-                print("Dict Keys TypeError")
-                continue
-             print("UID: ", uid, "\n")
-             try:
+            uid = 0
+            for key in output[1][0].keys():
+                uid = key
+                #print ("Key is", uid, "this is key")
+                #break
+                
+            #print("UID: ", uid, "\n")
+            try:
                 params_values = output[1][0][uid]
-             except IndexError:
-                print("No UIDs detected for a device_values request")
+            except KeyError:
+                #print("No UIDs detected for a device_values request")
                 params_values = [{}]
              
-             for param_val_tuple in params_values:
+            for param_val_tuple in params_values:
                 try:
                     parameter = param_val_tuple[0]
                     value = param_val_tuple[1]
                 except KeyError: # Treat a tuple with a missing value as if it didn't exist, except to print an error message
-                    print("Error: Params and Values tuple ", param_val_tuple, " has a missing value")
+                    #print("Error: Params and Values tuple ", param_val_tuple, " has a missing value")
                     continue
                 if uid not in self.device_values_cache:
                    self.device_values_cache.update({uid: {parameter: (value, time.time())}})
@@ -88,10 +89,14 @@ class HibikeCommunicator:
    def get_last_cached(self, uid, param):
       """
          Returns a tuple of the value and the timestamp of the last device_values package recieved from a uid and a parameter
-         Precondition: a device_data must have been recieved from the param before calling this function
+         Precondition: a device_data with a UID, params, and values must have been recieved from the param before calling this function
       """
-      print("Where the error is coming from: ", self.device_values_cache)
-      return self.device_values_cache[uid][param]
+      #print("Where the error is coming from: ", self.device_values_cache)
+      try:
+         return self.device_values_cache[uid][param]
+      except KeyError:
+         print("Keyerror detected, returning zero as last cached")
+         return 0
 
    
    def get_uids_and_types(self):
@@ -142,9 +147,10 @@ class HibikeCommunicator:
 #  TESTING   #
 ##############
 # Helper function designed to run a script
-def device_comms(comms, uid_type_tuple, script, item_delay, repeat_delay):
+#def device_comms(comms, uid_type_tuple, script, item_delay, repeat_delay):
    """
         Given a Hibike_Communicator and a device's UID and type, repeatedly carries out a script given to it by the caller with a user specified delay between each item in the script and each iteration of the script
+        Commented out due to an error
         
         comms: the Hibike_Communicator
         uid_type_tuple: a tuple that looks like this: (UID, device type)
@@ -154,17 +160,24 @@ def device_comms(comms, uid_type_tuple, script, item_delay, repeat_delay):
         Precondition: uid_type_tuple must be an element of comms.get_uids_and_types()
         Precondition: script is a list of function calls, usually HibikeCommunicator functions or print (the latter to print out cached data and other output from the various systems
    """
-   print("UID type tuple: ", uid_type_tuple)
+   #print("UID type tuple: ", uid_type_tuple)
    
-   uid = uid_type_tuple[0]
-   type = uid_type_tuple[1]
+   #uid = uid_type_tuple[0]
+   #type = uid_type_tuple[1]
    
    # Run every item in the user-given script
-   while True:
-      for item in script:
-         item()
-         time.sleep(item_delay)
-      time.sleep(repeat_delay)
+   #while True:
+      #for item in script:
+         #try:
+            #item()
+            #print("Item run")
+         #except KeyError:
+            #print("Error: no entry for UID :", uid)
+         #except TypeError:
+            #print("Object not in callable format")
+         #time.sleep(item_delay)
+      #print("Done with one cycle")
+      #time.sleep(repeat_delay)
 
 
 # What happens when hibike_communicator is called to be tested
@@ -176,7 +189,7 @@ if __name__ == "__main__":
             
    device_info = comms.get_uids_and_types()
         
-   # For each device, start a thread that calls the device_comms function with a script of your choice
+   # For each device, executes a set of commands in a cycle
    # This function has a set of standard scripts and delays for each device, but you can choose whatever scripts you like
    for uid_type_tuple in device_info:
       uid = uid_type_tuple[0]
@@ -184,53 +197,101 @@ if __name__ == "__main__":
       print("Device info packet: ", uid_type_tuple)
       print("Type: ", type)
       if type == "LimitSwitch":
-         script = [comms.subscribe(uid, 100, ["switch0", "switch1", "switch2", "switch3"]), print("Uid: ", uid,"\n", "Last cached: ", comms.get_last_cached(uid, "switch0"), "\n", comms.get_last_cached(uid, "switch1"), "\n")]
-         item_delay = 0.05
-         repeat_delay = 0.5
+         while True:
+            comms.subscribe(uid, 100, ["switch0", "switch1", "switch2", "switch3"])
+            time.sleep(0.05)
+            print("Uid: ", uid,"\n", "Last cached, swich1 and switch2: ", comms.get_last_cached(uid, "switch0"), "\n", comms.get_last_cached(uid, "switch1"), "\n")
+            time.sleep(0.5)
 
       elif type == "LineFollower":
-         script = [comms.subscribe(uid, 100, ["left", "center", "right"]), print("Uid: ", uid,"\n", "Last cached: ", comms.get_last_cached(uid, "left"), "\n", comms.get_last_cached(uid, "right"), "\n")]
-         item_delay = 0.05
-         repeat_delay = 0.5
+         while True:
+            comms.subscribe(uid, 100, ["left", "center", "right"])
+            time.sleep(0.05)
+            print("Uid: ", uid,"\n", "Last cached, all params: ", comms.get_last_cached(uid, "left"), "\n", comms.get_last_cached(uid, "right"), "\n")
+            time.sleep(0.5)
             
       elif type == "Potentiometer":
-         script = [comms.subscribe(uid, 100, ["pot0" , "pot1", "pot2", "pot3"]), print("Uid: ", uid,"\n", "Last cached: ", comms.get_last_cached(uid, "pot0"), "\n", comms.get_last_cached(uid, "pot2"), "\n")]
-         item_delay = 0.05
-         repeat_delay = 0.5
+         while True:
+            comms.subscribe(uid, 100, ["pot0" , "pot1", "pot2", "pot3"])
+            time.sleep(0.05)
+            print("Uid: ", uid,"\n", "Last cached, pot0 and pot2: ", comms.get_last_cached(uid, "pot0"), "\n", comms.get_last_cached(uid, "pot2"), "\n")
+            time.sleep(0.5)
 
       elif type == "Encoder":
-         script = [comms.read(uid, ["rotation"]), comms.read(uid, ["rotation"]), comms.read(uid, ["rotation"])]
-         item_delay = 0.05
-         repeat_delay = 0.5
+         while True:
+            comms.read(uid, ["rotation"])
+            time.sleep(0.05)
+            comms.read(uid, ["rotation"])
+            time.sleep(0.05)
+            comms.read(uid, ["rotation"])
+            time.sleep(0.5)
 
       elif type == "BatteryBuzzer":
-         script = [comms.subscribe(uid, 100, ["cell1", "cell2", "cell3", "calibrate"]), comms.write(uid, ("calibrate", True)), comms.write(uid, ("calibrate", False)), print("Uid: ", uid,"\n", "Last cached: ", comms.get_last_cached(uid, "calibrate"), "\n", comms.get_last_cached(uid, "cell2"), "\n")]
-         item_delay = 0.05
-         repeat_delay = 0.5
+         while True:
+            comms.subscribe(uid, 100, ["cell1", "cell2", "cell3", "calibrate"])
+            time.sleep(0.05)
+            comms.write(uid, ("calibrate", True))
+            time.sleep(0.05)
+            comms.write(uid, ("calibrate", False))
+            time.sleep(0.05)
+            print("Uid: ", uid,"\n", "Last cached, calibrate and cell2: ", comms.get_last_cached(uid, "calibrate"), "\n", comms.get_last_cached(uid, "cell2"), "\n")
+            time.sleep(0.5)
 
       elif type == "TeamFlag":
-         script = [comms.subscribe(uid, 100, ["led1", "led2", "led3", "led4", "blue", "yellow"]), comms.write(uid, [("led1", True), ("led2", True), ("led3", False), ("led4", False), ("blue", True), ("yellow", False)]), comms.write(uid, [("led1", False), ("led2", False), ("led3", True), ("led4", True), ("blue", False), ("yellow", True)]), print("Uid: ", uid,"\n", "Last cached: ", comms.get_last_cached(uid, "blue"), "\n", comms.get_last_cached(uid, "yellow"), "\n")]
-         time_delay = 0.05
-         repeat_delay = 0.5
+         while True:
+            comms.subscribe(uid, 100, ["led1", "led2", "led3", "led4", "blue", "yellow"])
+            time.sleep(0.05)
+            comms.write(uid, [("led1", True), ("led2", True), ("led3", False), ("led4", False), ("blue", True), ("yellow", False)])
+            time.sleep(0.05)
+            comms.write(uid, [("led1", False), ("led2", False), ("led3", True), ("led4", True), ("blue", False), ("yellow", True)])
+            time.sleep(0.05)
+            print("Uid: ", uid,"\n", "Last cached, blue and yellow: ", comms.get_last_cached(uid, "blue"), "\n", comms.get_last_cached(uid, "yellow"), "\n")
+            time.sleep(0.5)
 
       elif type == "YogiBear":
-         script = [comms.subscribe(uid, 100, ["duty", "forward"]), comms.write(uid, [("duty", 100),  ("forward", False)]), comms.write(uid, [("duty", 50),  ("forward", True)]), print("Uid: ", uid,"\n", "Last cached: ", comms.get_last_cached(uid, "duty"), "\n", comms.get_last_cached(uid, "forward"), "\n")]
-         time_delay = 0.05
-         repeat_delay = 0.5
+         while True:
+            comms.subscribe(uid, 100, ["duty", "forward"])
+            time.sleep(0.05)
+            comms.write(uid, [("duty", 100),  ("forward", False)])
+            time.sleep(0.05)
+            comms.write(uid, [("duty", 50),  ("forward", True)])
+            time.sleep(0.05)
+            print("Uid: ", uid,"\n", "Last cached, all params: ", comms.get_last_cached(uid, "duty"), "\n", comms.get_last_cached(uid, "forward"), "\n")
+            time.sleep(0.5)
           
       elif type == "ServoControl":
-         script = [comms.subscribe(uid, 100, ["servo0", "enable0", "servo1", "enable1", "servo2", "enable2", "servo3", "enable3"]), comms.write(uid, [("servo0", 3), ("enable0", False), ("servo1", 3), ("enable1", False), ("servo2", 3), ("enable2", True), ("servo3", 3), ("enable3", False)]), comms.write(uid, [("servo0", 1), ("enable0", True), ("servo1", 26), ("enable1", True), ("servo2", 30), ("enable2", False), ("servo3", 17), ("enable3", True)]), print("Uid: ", uid,"\n", "Last cached: ", comms.get_last_cached(uid, "servo1"), "\n", comms.get_last_cached(uid, "enable1"), "\n")]
-         time_delay = 0.05
-         repeat_delay = 0.5
+         while True:
+            comms.subscribe(uid, 100, ["servo0", "enable0", "servo1", "enable1", "servo2", "enable2", "servo3", "enable3"])
+            time.sleep(0.05)
+            comms.write(uid, [("servo0", 3), ("enable0", False), ("servo1", 3), ("enable1", False), ("servo2", 3), ("enable2", True), ("servo3", 3), ("enable3", False)])
+            time.sleep(0.05)
+            comms.write(uid, [("servo0", 1), ("enable0", True), ("servo1", 26), ("enable1", True), ("servo2", 30), ("enable2", False), ("servo3", 17), ("enable3", True)])
+            time.sleep(0.05)
+            print("Uid: ", uid,"\n", "Last cached, servo1 and enable1: ", comms.get_last_cached(uid, "servo1"), "\n", comms.get_last_cached(uid, "enable1"), "\n")
+            time.sleep(0.5)
 
       elif type == "ExampleDevice":
-         script = [comms.subscribe(uid, 100, ["kumiko", "hazuki", "sapphire", "reina", "asuka", "haruka", "kaori", "natsuki", "yuko", "mizore", "nozomi", "shuichi", "takuya", "riko", "aoi", "noboru"]), comms.write(uid, [("kumiko", True), ("hazuki", 19), ("sapphire", 12), ("reina", 210), ("asuka", 105), ("haruka", 1005), ("kaori", 551), ("natsuki", 18002), ("yuko", 9001), ("mizore", 6.45), ("nozomi", 33.2875), ("takuya", 331), ("aoi", 7598)]), comms.write(uid, [("kumiko", False), ("hazuki", 0), ("sapphire", 0), ("reina", 0), ("asuka", 0), ("haruka", 0), ("kaori", 0), ("natsuki", 0), ("yuko", 0), ("mizore", 0.0), ("nozomi", 0.0), ("takuya", 0), ("aoi", 0)]), print("Uid: ", uid,"\n","Last cached: ", comms.get_last_cached(uid, "kumiko"), "\n", comms.get_last_cached(uid, "hazuki"), "\n")]
-         time_delay = 0.05
-         repeat_delay = 0.5
+         while True:
+            comms.subscribe(uid, 100, ["kumiko", "hazuki", "sapphire", "reina", "asuka", "haruka", "kaori", "natsuki", "yuko", "mizore", "nozomi", "shuichi", "takuya", "riko", "aoi", "noboru"])
+            time.sleep(0.05)
+            comms.write(uid, [("kumiko", True), ("hazuki", 19), ("sapphire", 12), ("reina", 210), ("asuka", 105), ("haruka", 1005), ("kaori", 551), ("natsuki", 18002), ("yuko", 9001), ("mizore", 6.45), ("nozomi", 33.2875), ("takuya", 331), ("aoi", 7598)])
+            time.sleep(0.05)
+            comms.write(uid, [("kumiko", False), ("hazuki", 0), ("sapphire", 0), ("reina", 0), ("asuka", 0), ("haruka", 0), ("kaori", 0), ("natsuki", 0), ("yuko", 0), ("mizore", 0.0), ("nozomi", 0.0), ("takuya", 0), ("aoi", 0)])
+            time.sleep(0.05)
+            print("Uid: ", uid,"\n","Last cached, kumiko and hazuki: ", comms.get_last_cached(uid, "kumiko"), "\n", comms.get_last_cached(uid, "hazuki"), "\n")
+            time.sleep(0.5)
+      elif type == "RFID":
+         while True:
+            comms.subscribe(uid, 100, ["id", "detect_tag"])
+            time.sleep(0.05)
+            comms.read(uid, ["id"])
+            time.sleep(0.05)
+            print("Uid: ", uid, "\n", "Last cached, all params: ", comms.get_last_cached(uid, "id"), "\n", comms.get_last_cached(uid, "detect_tag"))
+            time.sleep(0.5)
       else:
          raise TypeError("ERROR: unknown device type detected")
 
-      print(uid_type_tuple)
-      process_thread = threading.Thread(target = device_comms, args = [comms, uid_type_tuple, script, time_delay, repeat_delay])
-      process_thread.start()
+      #print(uid_type_tuple)
+      #process_thread = threading.Thread(target = device_comms, args = [comms, uid_type_tuple, script, time_delay, repeat_delay])
+      #process_thread.start()
 
